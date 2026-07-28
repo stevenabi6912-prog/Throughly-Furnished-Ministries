@@ -2,21 +2,27 @@
  * LearnDash → TFM importer.
  *
  * Input: a full MySQL dump (.sql) of the old tfmchelsea.org WordPress site
- * (WP Engine → Backups → download, or phpMyAdmin → Export). Everything the
- * old site tracked comes across:
+ * (WP Engine backup → wp-content/mysql.sql).
  *
- *   wp_users / wp_usermeta      → users (password hashes carried over, so
- *                                 everyone keeps their old password)
- *   sfwd-courses                → courses
- *   sfwd-lessons + sfwd-topic   → lessons (topics flatten under their lesson)
- *   sfwd-assignment posts       → submissions (+ an assignment row per lesson)
- *   assignment approval/points  → grades
- *   comments on assignments     → mentor feedback
- *   usermeta _sfwd-quizzes      → quiz grades (as approved submissions)
- *   usermeta course progress    → enrollments + lesson completion
+ * How the old site's hierarchy maps to the new one — the old site used
+ * LearnDash's levels one step "up" from their names:
+ *
+ *   LearnDash course  ("Biblical Studies", …)      → program TRACK
+ *   LearnDash lesson  ("Baptist Distinctives 121") → COURSE (+ an Overview
+ *                                                    lesson from its body)
+ *   LearnDash topic   ("Biblical Authority", …)    → LESSON
+ *   quiz attempts (learndash_user_activity)        → graded submissions
+ *   sfwd-essays answers                            → submission text
+ *   sfwd-assignment file uploads                   → submissions
+ *   comments on assignment posts                   → mentor feedback
+ *   topic/lesson progress (usermeta + activity)    → lesson progress and
+ *                                                    course completion
+ *
+ * Users carry their WordPress password hashes, so everyone keeps their
+ * old password.
  *
  * Usage:
- *   npm run import:learndash -- path/to/dump.sql [--prefix wp_] [--dry-run]
+ *   npm run import:learndash -- path/to/mysql.sql [--prefix=wp_] [--dry-run]
  *
  * Idempotent: imported rows remember their WordPress IDs (wp_user_id /
  * wp_post_id), so re-running updates nothing and duplicates nothing.
@@ -205,8 +211,7 @@ function phpUnserialize(input: string): Php {
         return null;
       case "b": {
         expect("b:");
-        const v = readUntil(";");
-        return v === "1";
+        return readUntil(";") === "1";
       }
       case "i": {
         expect("i:");
@@ -300,6 +305,10 @@ function cleanHtml(dirty: string): string {
   });
 }
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function slugify(s: string): string {
   return (
     s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) ||
@@ -307,14 +316,14 @@ function slugify(s: string): string {
   );
 }
 
-/** Guess a program track from a course title. Review after importing! */
+/** The three old LearnDash courses are the three program tracks. */
 function guessTrack(
   title: string
 ): "biblical-studies" | "practical-skills" | "ministry-participation" {
   const t = title.toLowerCase();
   if (/first.?aid|construction|skill|carpentry|electrical|plumbing|mechanic|sew/.test(t))
     return "practical-skills";
-  if (/participation|serving|ministry (involvement|participation)|outreach|evangelism practicum/.test(t))
+  if (/participation|serving|outreach|evangelism practicum/.test(t))
     return "ministry-participation";
   return "biblical-studies";
 }
@@ -323,6 +332,11 @@ function wpDate(v: Cell): Date | null {
   if (typeof v !== "string" || v.startsWith("0000")) return null;
   const d = new Date(v.replace(" ", "T") + "Z");
   return isNaN(d.getTime()) ? null : d;
+}
+
+function unixDate(v: unknown): Date | null {
+  const n = Number(v);
+  return n > 0 ? new Date(n * 1000) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -338,7 +352,7 @@ async function main() {
   const file = args[0];
   if (!file) {
     console.error(
-      "Usage: npm run import:learndash -- path/to/dump.sql [--prefix=wp_] [--dry-run]"
+      "Usage: npm run import:learndash -- path/to/mysql.sql [--prefix=wp_] [--dry-run]"
     );
     process.exit(1);
   }
@@ -349,7 +363,8 @@ async function main() {
   console.log(
     `Parsed: ${t.users.length} users, ${t.posts.length} posts, ` +
       `${t.postmeta.length} postmeta, ${t.usermeta.length} usermeta, ` +
-      `${t.comments.length} comments`
+      `${t.comments.length} comments, ` +
+      `${(t.learndash_user_activity ?? []).length} activity rows`
   );
   if (t.users.length === 0 && t.posts.length === 0) {
     console.error(
@@ -373,12 +388,10 @@ async function main() {
     usermetaByUser.get(uid)!.set(String(m.meta_key), String(m.meta_value ?? ""));
   }
   const meta = (pid: number, key: string) => postmetaByPost.get(pid)?.get(key);
-  // Drafts are imported too (as unpublished) — TFM's real dump keeps most
-  // lessons/topics and ALL quizzes in draft status while still using them.
+  // Drafts are imported too (as unpublished) — the old site kept most of
+  // its curriculum and all quizzes in draft status while still using them.
   const byType = (type: string) => t.posts.filter((p) => p.post_type === type);
 
-  // LearnDash activity log — the authoritative source of quiz grades and
-  // lesson/topic completion on this site.
   const activityMetaByActivity = new Map<number, Map<string, string>>();
   for (const m of t.learndash_user_activity_meta ?? []) {
     const aid = Number(m.activity_id);
@@ -392,9 +405,9 @@ async function main() {
 
   if (dryRun) {
     console.log(`\nDry run — would import:`);
-    console.log(`  courses:      ${byType("sfwd-courses").length}`);
-    console.log(`  lessons:      ${byType("sfwd-lessons").length}`);
-    console.log(`  topics:       ${byType("sfwd-topic").length}`);
+    console.log(`  tracks:       ${byType("sfwd-courses").length} (the old LearnDash courses)`);
+    console.log(`  courses:      ${byType("sfwd-lessons").length} (the old LearnDash lessons)`);
+    console.log(`  lessons:      ${byType("sfwd-topic").length} (the old LearnDash topics)`);
     console.log(`  quizzes:      ${byType("sfwd-quiz").length}`);
     console.log(`  quiz grades:  ${activities.filter((a) => a.activity_type === "quiz").length} attempts`);
     console.log(`  essays:       ${byType("sfwd-essays").length}`);
@@ -444,22 +457,39 @@ async function main() {
   }
   report.push(`users: ${newUsers} imported, ${t.users.length - newUsers} already present`);
 
-  // ---- Courses --------------------------------------------------------
-  const courseIdByWp = new Map<number, number>();
-  let newCourses = 0;
+  // ---- Tracks (the old LearnDash courses) ------------------------------
+  type Track = "biblical-studies" | "practical-skills" | "ministry-participation";
+  const trackByOldCourse = new Map<number, Track>();
   for (const p of byType("sfwd-courses")) {
+    trackByOldCourse.set(Number(p.ID), guessTrack(String(p.post_title ?? "")));
+  }
+
+  // ---- Courses (the old LearnDash lessons) -----------------------------
+  // Each old lesson ("Baptist Distinctives 121") becomes a course in its
+  // track. Its body text becomes an "Overview" lesson so nothing is lost.
+  const courseIdByOldLesson = new Map<number, number>();
+  let newCourses = 0;
+  const oldLessons = byType("sfwd-lessons").sort(
+    (a, b) =>
+      (Number(a.menu_order) || 0) - (Number(b.menu_order) || 0) ||
+      Number(a.ID) - Number(b.ID)
+  );
+  for (const p of oldLessons) {
     const wpId = Number(p.ID);
     const existing = await db.query.courses.findFirst({
       where: eq(courses.wpPostId, wpId),
     });
     if (existing) {
-      courseIdByWp.set(wpId, existing.id);
+      courseIdByOldLesson.set(wpId, existing.id);
       continue;
     }
     const title = String(p.post_title ?? "Untitled course");
-    const rawDesc =
-      String(p.post_excerpt ?? "").trim() ||
-      String(p.post_content ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400);
+    const track =
+      trackByOldCourse.get(Number(meta(wpId, "course_id") ?? 0)) ??
+      guessTrack(title);
+    const bodyHtml = cleanHtml(String(p.post_content ?? ""));
+    const description =
+      String(p.post_excerpt ?? "").trim() || stripHtml(bodyHtml).slice(0, 300);
     let slug = String(p.post_name ?? "") || slugify(title);
     if (await db.query.courses.findFirst({ where: eq(courses.slug, slug) })) {
       slug = `${slug}-${wpId}`;
@@ -470,45 +500,57 @@ async function main() {
         wpPostId: wpId,
         slug,
         title,
-        description: rawDesc,
-        track: guessTrack(title),
+        description,
+        track,
         sortOrder: Number(p.menu_order) || 0,
         published: p.post_status === "publish",
         createdAt: wpDate(p.post_date) ?? new Date(),
       })
       .returning();
-    courseIdByWp.set(wpId, created.id);
+    courseIdByOldLesson.set(wpId, created.id);
     newCourses++;
+    if (stripHtml(bodyHtml).length > 0) {
+      await db.insert(lessons).values({
+        wpPostId: -wpId, // marker: the Overview lesson generated from old lesson wpId
+        courseId: created.id,
+        slug: "overview",
+        title: "Overview",
+        contentHtml: bodyHtml,
+        sortOrder: 0,
+        published: p.post_status === "publish",
+      });
+    }
   }
-  report.push(`courses: ${newCourses} imported (tracks were guessed from titles — review in /admin/courses)`);
+  report.push(
+    `courses: ${newCourses} imported (tracks assigned from the old structure — review in /admin/courses)`
+  );
 
-  function courseForPost(pid: number): number | undefined {
-    const cid = Number(meta(pid, "course_id") ?? 0);
-    return courseIdByWp.get(cid);
-  }
-
-  // ---- Lessons (sfwd-lessons) and topics (sfwd-topic) ------------------
-  const lessonIdByWp = new Map<number, number>();
+  // ---- Lessons (the old LearnDash topics) ------------------------------
+  const lessonIdByOldTopic = new Map<number, number>();
+  const courseOfNewLesson = new Map<number, number>();
   let newLessons = 0;
-  const wpLessons = byType("sfwd-lessons").sort(
-    (a, b) => (Number(a.menu_order) || 0) - (Number(b.menu_order) || 0)
+  let orphanTopics = 0;
+  const perCourseOrder = new Map<number, number>();
+  const oldTopics = byType("sfwd-topic").sort(
+    (a, b) =>
+      (Number(a.menu_order) || 0) - (Number(b.menu_order) || 0) ||
+      Number(a.ID) - Number(b.ID)
   );
-  const wpTopics = byType("sfwd-topic").sort(
-    (a, b) => (Number(a.menu_order) || 0) - (Number(b.menu_order) || 0)
-  );
-
-  async function importLesson(
-    p: Row,
-    courseId: number,
-    sortOrder: number
-  ): Promise<void> {
+  for (const p of oldTopics) {
     const wpId = Number(p.ID);
+    const parentOldLesson = Number(meta(wpId, "lesson_id") ?? 0);
+    const courseId = courseIdByOldLesson.get(parentOldLesson);
+    if (!courseId) {
+      orphanTopics++;
+      continue;
+    }
     const existing = await db.query.lessons.findFirst({
       where: eq(lessons.wpPostId, wpId),
     });
     if (existing) {
-      lessonIdByWp.set(wpId, existing.id);
-      return;
+      lessonIdByOldTopic.set(wpId, existing.id);
+      courseOfNewLesson.set(existing.id, existing.courseId);
+      continue;
     }
     const title = String(p.post_title ?? "Untitled lesson");
     let slug = String(p.post_name ?? "") || slugify(title);
@@ -519,6 +561,8 @@ async function main() {
     ) {
       slug = `${slug}-${wpId}`;
     }
+    const order = (perCourseOrder.get(courseId) ?? 0) + 10;
+    perCourseOrder.set(courseId, order);
     const [created] = await db
       .insert(lessons)
       .values({
@@ -527,77 +571,116 @@ async function main() {
         slug,
         title,
         contentHtml: cleanHtml(String(p.post_content ?? "")),
-        sortOrder,
+        sortOrder: order,
         published: p.post_status === "publish",
       })
       .returning();
-    lessonIdByWp.set(wpId, created.id);
+    lessonIdByOldTopic.set(wpId, created.id);
+    courseOfNewLesson.set(created.id, courseId);
     newLessons++;
   }
+  report.push(
+    `lessons: ${newLessons} imported` +
+      (orphanTopics ? ` (${orphanTopics} skipped — no parent course)` : "")
+  );
 
-  let order = 0;
-  for (const p of wpLessons) {
-    const courseId = courseForPost(Number(p.ID));
-    if (!courseId) continue;
-    order += 10;
-    await importLesson(p, courseId, order);
-    // Topics belonging to this lesson slot in right after it.
-    const children = wpTopics.filter(
-      (tp) => Number(meta(Number(tp.ID), "lesson_id") ?? 0) === Number(p.ID)
-    );
-    for (const tp of children) {
-      order += 1;
-      const topicCourse = courseForPost(Number(tp.ID)) ?? courseId;
-      await importLesson(tp, topicCourse, order);
+  /**
+   * Resolve an old step ID (which may be an old lesson = new course, or an
+   * old topic = new lesson) to where things attach in the new structure.
+   */
+  function resolveStep(
+    oldId: number
+  ): { courseId: number; lessonId: number | null } | null {
+    const asCourse = courseIdByOldLesson.get(oldId);
+    if (asCourse) return { courseId: asCourse, lessonId: null };
+    const asLesson = lessonIdByOldTopic.get(oldId);
+    if (asLesson) {
+      const courseId = courseOfNewLesson.get(asLesson);
+      if (courseId) return { courseId, lessonId: asLesson };
     }
+    return null;
   }
-  // Orphan topics (no imported parent lesson) still come across.
-  for (const tp of wpTopics) {
-    if (lessonIdByWp.has(Number(tp.ID))) continue;
-    const courseId = courseForPost(Number(tp.ID));
-    if (!courseId) continue;
-    order += 10;
-    await importLesson(tp, courseId, order);
-  }
-  report.push(`lessons: ${newLessons} imported (incl. topics)`);
 
-  // ---- Assignment definitions + student submissions --------------------
-  // LearnDash has no "assignment" content type — uploads hang off lessons.
-  // We create one assignment per lesson that has submissions.
-  const wpSubmissions = t.posts.filter((p) => p.post_type === "sfwd-assignment");
-  const assignmentIdByLesson = new Map<number, number>();
-
-  async function assignmentForLesson(
-    newLessonId: number,
+  // ---- Enrollment + progress collectors --------------------------------
+  // Filled in by every import path below, inserted at the end.
+  const enrollMap = new Map<
+    string,
+    { userId: number; courseId: number; enrolledAt: Date; completedAt: Date | null }
+  >();
+  function noteEnrollment(
+    userId: number,
     courseId: number,
-    lessonTitle: string
-  ): Promise<number> {
-    const cached = assignmentIdByLesson.get(newLessonId);
-    if (cached) return cached;
+    when: Date | null,
+    completedAt: Date | null = null
+  ) {
+    const key = `${userId}:${courseId}`;
+    const cur = enrollMap.get(key);
+    if (!cur) {
+      enrollMap.set(key, {
+        userId,
+        courseId,
+        enrolledAt: when ?? new Date(),
+        completedAt,
+      });
+      return;
+    }
+    if (when && when < cur.enrolledAt) cur.enrolledAt = when;
+    if (completedAt && (!cur.completedAt || completedAt > cur.completedAt))
+      cur.completedAt = completedAt;
+  }
+  const progressMap = new Map<string, { userId: number; lessonId: number; at: Date }>();
+  function noteProgress(userId: number, lessonId: number, at: Date | null) {
+    const key = `${userId}:${lessonId}`;
+    if (!progressMap.has(key))
+      progressMap.set(key, { userId, lessonId, at: at ?? new Date() });
+    const courseId = courseOfNewLesson.get(lessonId);
+    if (courseId) noteEnrollment(userId, courseId, at);
+  }
+
+  // ---- File submissions (sfwd-assignment posts) ------------------------
+  const stepAssignmentByOldParent = new Map<number, number>();
+
+  async function assignmentForStep(oldParentId: number): Promise<
+    { id: number; courseId: number } | null
+  > {
+    const step = resolveStep(oldParentId);
+    if (!step) return null;
+    const cached = stepAssignmentByOldParent.get(oldParentId);
+    if (cached) return { id: cached, courseId: step.courseId };
+    const marker = -oldParentId;
     const existing = await db.query.assignments.findFirst({
-      where: and(
-        eq(assignments.lessonId, newLessonId),
-        eq(assignments.wpPostId, -newLessonId) // marker for imported defs
-      ),
+      where: eq(assignments.wpPostId, marker),
     });
     if (existing) {
-      assignmentIdByLesson.set(newLessonId, existing.id);
-      return existing.id;
+      stepAssignmentByOldParent.set(oldParentId, existing.id);
+      return { id: existing.id, courseId: step.courseId };
+    }
+    let title = "Assignment";
+    if (step.lessonId) {
+      const l = await db.query.lessons.findFirst({
+        where: eq(lessons.id, step.lessonId),
+      });
+      if (l) title = `Assignment — ${l.title}`;
+    } else {
+      const c = await db.query.courses.findFirst({
+        where: eq(courses.id, step.courseId),
+      });
+      if (c) title = `Assignment — ${c.title}`;
     }
     const [created] = await db
       .insert(assignments)
       .values({
-        wpPostId: -newLessonId,
-        courseId,
-        lessonId: newLessonId,
-        title: `Assignment — ${lessonTitle}`,
+        wpPostId: marker,
+        courseId: step.courseId,
+        lessonId: step.lessonId,
+        title,
         instructionsHtml:
           "<p>Complete the assignment for this lesson and upload your work.</p>",
         points: 100,
       })
       .returning();
-    assignmentIdByLesson.set(newLessonId, created.id);
-    return created.id;
+    stepAssignmentByOldParent.set(oldParentId, created.id);
+    return { id: created.id, courseId: step.courseId };
   }
 
   // Mentor feedback: comments on assignment posts.
@@ -612,32 +695,22 @@ async function main() {
 
   let newSubs = 0;
   let skippedSubs = 0;
-  for (const p of wpSubmissions) {
+  for (const p of byType("sfwd-assignment")) {
     const wpId = Number(p.ID);
+    const userId = userIdByWp.get(Number(p.post_author));
+    const parent = Number(meta(wpId, "lesson_id") ?? 0);
+    const assignment = userId ? await assignmentForStep(parent) : null;
+    if (!userId || !assignment) {
+      skippedSubs++;
+      continue;
+    }
+    const submittedAt = wpDate(p.post_date) ?? new Date();
+    noteEnrollment(userId, assignment.courseId, submittedAt);
+
     const existing = await db.query.submissions.findFirst({
       where: eq(submissions.wpPostId, wpId),
     });
     if (existing) continue;
-
-    const userId = userIdByWp.get(Number(p.post_author));
-    const wpLessonId = Number(meta(wpId, "lesson_id") ?? 0);
-    const newLessonId = lessonIdByWp.get(wpLessonId);
-    if (!userId || !newLessonId) {
-      skippedSubs++;
-      continue;
-    }
-    const lessonRow = await db.query.lessons.findFirst({
-      where: eq(lessons.id, newLessonId),
-    });
-    if (!lessonRow) {
-      skippedSubs++;
-      continue;
-    }
-    const assignmentId = await assignmentForLesson(
-      newLessonId,
-      lessonRow.courseId,
-      lessonRow.title
-    );
 
     const approved = String(meta(wpId, "approval_status") ?? "") === "1";
     const pointsMeta = meta(wpId, "points");
@@ -653,13 +726,13 @@ async function main() {
 
     await db.insert(submissions).values({
       wpPostId: wpId,
-      assignmentId,
+      assignmentId: assignment.id,
       userId,
       text: null,
       fileUrl,
       fileName: meta(wpId, "file_name") ?? (String(p.post_title ?? "") || null),
       status: approved ? "approved" : "submitted",
-      submittedAt: wpDate(p.post_date) ?? new Date(),
+      submittedAt,
       score: approved ? score ?? 100 : score,
       feedback,
       gradedAt: approved || feedback ? wpDate(p.post_modified) ?? new Date() : null,
@@ -667,14 +740,14 @@ async function main() {
     newSubs++;
   }
   report.push(
-    `assignment submissions: ${newSubs} imported` +
+    `file submissions: ${newSubs} imported` +
       (skippedSubs ? ` (${skippedSubs} skipped — missing user or lesson)` : "")
   );
 
   // ---- Quiz grades (learndash_user_activity) ---------------------------
-  // Every quiz attempt is an activity row with meta: quiz (post id),
-  // points, total_points, percentage, pass, completed. We keep the best
-  // attempt per student per quiz and store it as an approved submission.
+  // Every attempt is an activity row with meta (points, total_points,
+  // percentage…). Best attempt per student per quiz becomes an approved
+  // submission on a "Quiz — …" assignment attached where the quiz lived.
   const quizPosts = new Map<number, Row>();
   const quizPostByProId = new Map<number, number>();
   for (const p of byType("sfwd-quiz")) {
@@ -682,44 +755,48 @@ async function main() {
     const pro = Number(meta(Number(p.ID), "quiz_pro_id") ?? 0);
     if (pro) quizPostByProId.set(pro, Number(p.ID));
   }
-  const quizAssignmentByWp = new Map<number, number>();
+  const quizAssignmentByWp = new Map<number, { id: number; courseId: number }>();
   let newQuizGrades = 0;
+  let skippedQuizzes = 0;
 
   async function assignmentForQuiz(
     wpQuizId: number,
     totalPoints?: number
-  ): Promise<number | null> {
+  ): Promise<{ id: number; courseId: number } | null> {
     const cached = quizAssignmentByWp.get(wpQuizId);
     if (cached) return cached;
+    const p = quizPosts.get(wpQuizId);
+    if (!p) return null;
+    const step = resolveStep(Number(meta(wpQuizId, "lesson_id") ?? 0));
+    if (!step) {
+      skippedQuizzes++;
+      return null;
+    }
     const existing = await db.query.assignments.findFirst({
       where: eq(assignments.wpPostId, wpQuizId),
     });
     if (existing) {
-      quizAssignmentByWp.set(wpQuizId, existing.id);
-      return existing.id;
+      const value = { id: existing.id, courseId: existing.courseId };
+      quizAssignmentByWp.set(wpQuizId, value);
+      return value;
     }
-    const p = quizPosts.get(wpQuizId);
-    if (!p) return null;
-    const courseId = courseForPost(wpQuizId);
-    if (!courseId) return null;
-    const wpLessonId = Number(meta(wpQuizId, "lesson_id") ?? 0);
     const [created] = await db
       .insert(assignments)
       .values({
         wpPostId: wpQuizId,
-        courseId,
-        lessonId: lessonIdByWp.get(wpLessonId) ?? null,
+        courseId: step.courseId,
+        lessonId: step.lessonId,
         title: `Quiz — ${String(p.post_title ?? "Quiz")}`,
         instructionsHtml:
           "<p>This quiz was taken on the old TFM site; the score below was imported with it.</p>",
         points: totalPoints && totalPoints > 0 ? totalPoints : 100,
       })
       .returning();
-    quizAssignmentByWp.set(wpQuizId, created.id);
-    return created.id;
+    const value = { id: created.id, courseId: created.courseId };
+    quizAssignmentByWp.set(wpQuizId, value);
+    return value;
   }
 
-  // Best attempt per (user, quiz post).
   type Attempt = { points: number; total: number; pct: number; when: number };
   const bestAttempt = new Map<string, { userId: number; quizPostId: number } & Attempt>();
   for (const a of activities) {
@@ -749,18 +826,19 @@ async function main() {
     }
   }
   for (const r of bestAttempt.values()) {
-    const assignmentId = await assignmentForQuiz(r.quizPostId, r.total);
-    if (!assignmentId) continue;
+    const assignment = await assignmentForQuiz(r.quizPostId, r.total);
+    if (!assignment) continue;
+    const when = unixDate(r.when) ?? new Date();
+    noteEnrollment(r.userId, assignment.courseId, when);
     const already = await db.query.submissions.findFirst({
       where: and(
-        eq(submissions.assignmentId, assignmentId),
+        eq(submissions.assignmentId, assignment.id),
         eq(submissions.userId, r.userId)
       ),
     });
     if (already) continue;
-    const when = r.when ? new Date(r.when * 1000) : new Date();
     await db.insert(submissions).values({
-      assignmentId,
+      assignmentId: assignment.id,
       userId: r.userId,
       text: `Imported quiz result from the old site: ${r.points}/${r.total} (${Math.round(r.pct)}%)`,
       status: "approved",
@@ -770,12 +848,12 @@ async function main() {
     });
     newQuizGrades++;
   }
-  report.push(`quiz grades: ${newQuizGrades} imported (best attempt per student per quiz)`);
+  report.push(
+    `quiz grades: ${newQuizGrades} imported (best attempt per student per quiz)` +
+      (skippedQuizzes ? ` — ${skippedQuizzes} quiz(es) unplaceable, skipped` : "")
+  );
 
   // ---- Essay answers (sfwd-essays) -------------------------------------
-  // Essay-type quiz questions store the student's written answer as its
-  // own post (status "graded" / "not_graded"). Attach each essay's text to
-  // that student's submission on the quiz it belongs to.
   let newEssays = 0;
   let skippedEssays = 0;
   for (const p of byType("sfwd-essays")) {
@@ -785,20 +863,20 @@ async function main() {
       Number(meta(wpId, "quiz_post_id") ?? 0) ||
       quizPostByProId.get(Number(meta(wpId, "quiz_pro_id") ?? 0)) ||
       0;
-    if (!userId || !quizPostId) {
+    const assignment =
+      userId && quizPostId ? await assignmentForQuiz(quizPostId) : null;
+    if (!userId || !assignment) {
       skippedEssays++;
       continue;
     }
-    const assignmentId = await assignmentForQuiz(quizPostId);
-    if (!assignmentId) {
-      skippedEssays++;
-      continue;
-    }
+    const when = wpDate(p.post_date) ?? new Date();
+    noteEnrollment(userId, assignment.courseId, when);
+
     const marker = `[Essay #${wpId}]`;
     const essayText = `${marker} ${String(p.post_title ?? "Essay")}\n${String(p.post_content ?? "").trim()}`;
     const existing = await db.query.submissions.findFirst({
       where: and(
-        eq(submissions.assignmentId, assignmentId),
+        eq(submissions.assignmentId, assignment.id),
         eq(submissions.userId, userId)
       ),
     });
@@ -810,10 +888,9 @@ async function main() {
         .where(eq(submissions.id, existing.id));
     } else {
       const graded = p.post_status === "graded";
-      const when = wpDate(p.post_date) ?? new Date();
       await db.insert(submissions).values({
         wpPostId: wpId,
-        assignmentId,
+        assignmentId: assignment.id,
         userId,
         text: essayText,
         status: graded ? "approved" : "submitted",
@@ -828,133 +905,85 @@ async function main() {
       (skippedEssays ? ` (${skippedEssays} skipped — missing user or quiz)` : "")
   );
 
-  // ---- Enrollments + lesson progress ----------------------------------
-  let newEnrollments = 0;
-  let newProgress = 0;
+  // ---- Progress --------------------------------------------------------
+  // Old topic completed → lesson completed here. Old lesson completed →
+  // course completed here. Both arrive from two sources: the serialized
+  // usermeta and the activity log.
   for (const u of t.users) {
     const wpUserId = Number(u.ID);
     const userId = userIdByWp.get(wpUserId);
     if (!userId) continue;
-    const um = usermetaByUser.get(wpUserId);
-    if (!um) continue;
-
-    const enrolledWpCourses = new Set<number>();
-    for (const key of um.keys()) {
-      const m = key.match(/^course_(\d+)_access_from$/);
-      if (m) enrolledWpCourses.add(Number(m[1]));
-    }
-    const progress = tryUnserialize(um.get("_sfwd-course_progress") ?? "");
-    if (progress && typeof progress === "object") {
-      for (const wpCourseId of Object.keys(progress)) {
-        enrolledWpCourses.add(Number(wpCourseId));
+    const progress = tryUnserialize(
+      usermetaByUser.get(wpUserId)?.get("_sfwd-course_progress") ?? ""
+    );
+    if (!progress || typeof progress !== "object") continue;
+    for (const courseProgress of Object.values(progress)) {
+      if (!courseProgress || typeof courseProgress !== "object") continue;
+      const cp = courseProgress as Record<string, Php>;
+      const lessonsMap = cp["lessons"];
+      if (lessonsMap && typeof lessonsMap === "object") {
+        for (const [oldLessonId, done] of Object.entries(lessonsMap)) {
+          if (Number(done) !== 1) continue;
+          const courseId = courseIdByOldLesson.get(Number(oldLessonId));
+          if (courseId) noteEnrollment(userId, courseId, null, new Date());
+        }
       }
-    }
-
-    for (const wpCourseId of enrolledWpCourses) {
-      const courseId = courseIdByWp.get(wpCourseId);
-      if (!courseId) continue;
-      const accessFrom = Number(um.get(`course_${wpCourseId}_access_from`) ?? 0);
-      const completedTs = Number(um.get(`course_completed_${wpCourseId}`) ?? 0);
-      const res = await db
-        .insert(enrollments)
-        .values({
-          userId,
-          courseId,
-          enrolledAt: accessFrom ? new Date(accessFrom * 1000) : new Date(),
-          completedAt: completedTs ? new Date(completedTs * 1000) : null,
-        })
-        .onConflictDoNothing()
-        .returning();
-      if (res.length > 0) newEnrollments++;
-    }
-
-    if (progress && typeof progress === "object") {
-      for (const courseProgress of Object.values(progress)) {
-        if (!courseProgress || typeof courseProgress !== "object") continue;
-        const cp = courseProgress as Record<string, Php>;
-        const doneWpLessonIds: number[] = [];
-        const lessonsMap = cp["lessons"];
-        if (lessonsMap && typeof lessonsMap === "object") {
-          for (const [lid, done] of Object.entries(lessonsMap)) {
-            if (Number(done) === 1) doneWpLessonIds.push(Number(lid));
+      const topicsMap = cp["topics"];
+      if (topicsMap && typeof topicsMap === "object") {
+        for (const perLesson of Object.values(topicsMap)) {
+          if (!perLesson || typeof perLesson !== "object") continue;
+          for (const [oldTopicId, done] of Object.entries(perLesson)) {
+            if (Number(done) !== 1) continue;
+            const lessonId = lessonIdByOldTopic.get(Number(oldTopicId));
+            if (lessonId) noteProgress(userId, lessonId, null);
           }
-        }
-        const topicsMap = cp["topics"];
-        if (topicsMap && typeof topicsMap === "object") {
-          for (const perLesson of Object.values(topicsMap)) {
-            if (!perLesson || typeof perLesson !== "object") continue;
-            for (const [tid, done] of Object.entries(perLesson)) {
-              if (Number(done) === 1) doneWpLessonIds.push(Number(tid));
-            }
-          }
-        }
-        for (const wpLessonId of doneWpLessonIds) {
-          const lessonId = lessonIdByWp.get(wpLessonId);
-          if (!lessonId) continue;
-          const res = await db
-            .insert(lessonProgress)
-            .values({ userId, lessonId })
-            .onConflictDoNothing()
-            .returning();
-          if (res.length > 0) newProgress++;
         }
       }
     }
   }
-  // The activity log is a second source of the same facts — it catches
-  // anything the usermeta pass missed.
   for (const a of activities) {
     const userId = userIdByWp.get(Number(a.user_id));
     if (!userId) continue;
-    if (
-      (a.activity_type === "lesson" || a.activity_type === "topic") &&
-      Number(a.activity_status) === 1
-    ) {
-      const lessonId = lessonIdByWp.get(Number(a.post_id));
-      if (!lessonId) continue;
-      const res = await db
-        .insert(lessonProgress)
-        .values({
-          userId,
-          lessonId,
-          completedAt: Number(a.activity_completed)
-            ? new Date(Number(a.activity_completed) * 1000)
-            : new Date(),
-        })
-        .onConflictDoNothing()
-        .returning();
-      if (res.length > 0) newProgress++;
-    } else if (a.activity_type === "course") {
-      const courseId =
-        courseIdByWp.get(Number(a.course_id) || 0) ??
-        courseIdByWp.get(Number(a.post_id) || 0);
-      if (!courseId) continue;
-      const res = await db
-        .insert(enrollments)
-        .values({
-          userId,
-          courseId,
-          enrolledAt: Number(a.activity_started)
-            ? new Date(Number(a.activity_started) * 1000)
-            : new Date(),
-          completedAt:
-            Number(a.activity_status) === 1 && Number(a.activity_completed)
-              ? new Date(Number(a.activity_completed) * 1000)
-              : null,
-        })
-        .onConflictDoNothing()
-        .returning();
-      if (res.length > 0) newEnrollments++;
+    const started = unixDate(a.activity_started);
+    const completed = unixDate(a.activity_completed);
+    const isDone = Number(a.activity_status) === 1;
+    if (a.activity_type === "topic" && isDone) {
+      const lessonId = lessonIdByOldTopic.get(Number(a.post_id));
+      if (lessonId) noteProgress(userId, lessonId, completed ?? started);
+    } else if (a.activity_type === "lesson") {
+      const courseId = courseIdByOldLesson.get(Number(a.post_id));
+      if (courseId)
+        noteEnrollment(userId, courseId, started, isDone ? completed ?? new Date() : null);
     }
   }
-  report.push(`enrollments: ${newEnrollments} imported`);
+
+  let newProgress = 0;
+  for (const p of progressMap.values()) {
+    const res = await db
+      .insert(lessonProgress)
+      .values({ userId: p.userId, lessonId: p.lessonId, completedAt: p.at })
+      .onConflictDoNothing()
+      .returning();
+    if (res.length > 0) newProgress++;
+  }
+  let newEnrollments = 0;
+  for (const e of enrollMap.values()) {
+    const res = await db
+      .insert(enrollments)
+      .values(e)
+      .onConflictDoNothing()
+      .returning();
+    if (res.length > 0) newEnrollments++;
+  }
+  report.push(`enrollments: ${newEnrollments} imported (from actual activity)`);
   report.push(`lesson completions: ${newProgress} imported`);
 
   console.log("\n===== Import complete =====");
   for (const line of report) console.log("  • " + line);
   console.log(`
 Next steps:
-  1. Review course tracks in /admin/courses (they were guessed from titles).
+  1. Review courses in /admin/courses — draft content from the old site
+     arrived unpublished, so publish what students should see.
   2. Spot-check a student in /admin/students against the old gradebook.
   3. Assignment files still point at ${OLD_SITE} — keep that
      hosting live until you're ready, or re-upload the files you care about.
