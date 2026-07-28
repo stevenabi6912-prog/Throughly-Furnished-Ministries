@@ -1,0 +1,15 @@
+{
+  "name": "Throughly Furnished Ministries",
+  "shortName": "TFM",
+  "tagline": "Preparing laborers for the harvest",
+  "verse": "All scripture is given by inspiration of God, and is profitable for doctrine, for reproof, for correction, for instruction in righteousness: That the man of God may be perfect, throughly furnished unto all good works.",
+  "verseRef": "2 Timothy 3:16–17",
+  "church": {
+    "name": "Faith Baptist Church",
+    "city": "Chelsea, Michigan",
+    "url": "https://fbcchelsea.org"
+  },
+  "social": {
+    "facebook": "https://www.facebook.com/tfmchelsea"
+  }
+}

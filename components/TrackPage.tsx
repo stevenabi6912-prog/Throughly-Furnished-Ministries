@@ -1,0 +1,98 @@
+import Image from "next/image";
+import Link from "next/link";
+import { getPublishedCourses, TRACK_INFO } from "@/lib/data";
+import { getCurrentUser } from "@/lib/auth/session";
+
+// Shared template for the three program-track pages.
+export default async function TrackPage({
+  track,
+  heroImage,
+  children,
+}: {
+  track: keyof typeof TRACK_INFO;
+  heroImage: string;
+  children: React.ReactNode; // the track's descriptive copy
+}) {
+  const info = TRACK_INFO[track];
+  const [coursesInTrack, user] = await Promise.all([
+    getPublishedCourses(track),
+    getCurrentUser(),
+  ]);
+
+  return (
+    <>
+      <section className="relative overflow-hidden bg-slate-950 px-4 py-24 text-center text-white sm:py-32">
+        <div className="absolute inset-0" aria-hidden="true">
+          <Image
+            src={heroImage}
+            alt=""
+            fill
+            priority
+            className="object-cover opacity-35"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 to-slate-950/90" />
+        </div>
+        <div className="relative mx-auto max-w-3xl">
+          <p className="animate-rise animate-rise-1 text-sm font-semibold uppercase tracking-[0.25em] text-brand-400">
+            TFM Program
+          </p>
+          <h1 className="animate-rise animate-rise-2 mt-3 text-5xl sm:text-6xl">
+            {info.title}
+          </h1>
+          <p className="animate-rise animate-rise-3 mx-auto mt-5 max-w-2xl text-lg text-slate-200">
+            {info.blurb}
+          </p>
+        </div>
+      </section>
+
+      <section className="bg-white px-4 py-16 sm:py-20">
+        <div className="prose prose-slate mx-auto max-w-3xl prose-a:text-brand-700">
+          {children}
+        </div>
+      </section>
+
+      <section className="bg-slate-50 px-4 py-16 sm:py-20">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="text-center text-4xl">Courses in This Program</h2>
+          {coursesInTrack.length === 0 ? (
+            <p className="mt-8 text-center text-slate-600">
+              Courses for this program are being prepared — check back soon.
+            </p>
+          ) : (
+            <div className="mt-10 grid gap-6 sm:grid-cols-2">
+              {coursesInTrack.map((course) => (
+                <Link
+                  key={course.id}
+                  href={`/courses/${course.slug}`}
+                  className="hover-lift group rounded-2xl bg-white p-7 shadow-sm"
+                >
+                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-brand-700">
+                    {course.title}
+                  </h3>
+                  {course.description && (
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
+                      {course.description}
+                    </p>
+                  )}
+                  <span className="mt-4 inline-block text-sm font-semibold text-brand-700">
+                    View course →
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+          {!user && (
+            <p className="mt-10 text-center">
+              <Link
+                href="/register"
+                className="hover-lift inline-block rounded-lg bg-brand-500 px-7 py-3.5 font-semibold text-white shadow transition-colors hover:bg-brand-600"
+              >
+                Register to Enroll
+              </Link>
+            </p>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
