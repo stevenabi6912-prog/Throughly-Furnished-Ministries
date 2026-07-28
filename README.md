@@ -75,27 +75,23 @@ After editing `lib/db/schema.ts`, run `npm run db:generate` to emit a new
 migration into `drizzle/` — migrations apply automatically the next time
 the app (or a script) starts.
 
-## Deploying to Vercel (first-time setup)
+## Deployment (set up 2026-07-28 — all done)
 
-1. Push this folder to a GitHub repo, then import it in Vercel
-   (vercel.com → Add New → Project). Every push to `main` deploys.
-2. **Database — Neon Postgres** (Vercel Marketplace): in the Vercel
-   dashboard → Storage → Create Database → **Neon** (Postgres). Connect it
-   to the project — this sets `DATABASE_URL` automatically. The schema
-   creates itself on first request.
-3. **File uploads — Vercel Blob**: dashboard → Storage → Create → **Blob**,
-   connect it to the project — this sets `BLOB_READ_WRITE_TOKEN`. Without
-   it, assignment file uploads fail in production (text submissions still
-   work).
-4. **Auth secret**: Project → Settings → Environment Variables → add
-   `AUTH_SECRET` set to a long random string (run
-   `openssl rand -base64 32` to make one). Required in production.
-5. Optional: `NEXT_PUBLIC_SITE_URL=https://tfmchelsea.org` once the domain
-   is pointed at Vercel.
+- GitHub: `stevenabi6912-prog/Throughly-Furnished-Ministries` — every push
+  to `main` deploys automatically.
+- Vercel project: **tfm-website** (team: faith-baptist-church). Live at
+  https://tfm-website-seven.vercel.app until the domain cut-over.
+- Provisioned and connected: **Neon Postgres** (`DATABASE_URL`, schema
+  auto-migrates), **Blob store `tfm-uploads`** (`BLOB_READ_WRITE_TOKEN`),
+  and `AUTH_SECRET` (production + preview).
+- Still to do at cut-over: point tfmchelsea.org at Vercel (project →
+  Settings → Domains) and set `NEXT_PUBLIC_SITE_URL=https://tfmchelsea.org`.
 
-With the Vercel CLI installed (`npm i -g vercel`), `vercel link` then
-`vercel env pull` writes those env vars into `.env.local` so your local
-machine can talk to the production database when you run the import.
+**`.env.vercel.local`** (gitignored) holds the pulled production
+credentials. It is deliberately NOT named `.env.local`, so local `npm run
+dev` keeps using the safe local PGlite database. Scripts only touch
+production when you explicitly load it (see step 4 below). Refresh it
+anytime with `vercel env pull .env.vercel.local`.
 
 ## Migrating the LearnDash data (the big one)
 
@@ -140,12 +136,13 @@ Log in as one of the old admins and click around `/admin`:
 ### Step 4 — import into production
 
 ```bash
-vercel env pull            # gets the production DATABASE_URL into .env.local
+set -a; source .env.vercel.local; set +a
 npm run import:learndash -- ~/Downloads/mysql.sql
 ```
 
 (Any script run with `DATABASE_URL` set targets that database instead of
-the local one.) The import is **idempotent** — running it twice never
+the local one — the `source` line loads the production credentials into
+just that terminal session.) The import is **idempotent** — running it twice never
 duplicates anything, so it's safe to re-run right before cut-over to pick
 up last-minute activity on the old site.
 
