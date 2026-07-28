@@ -45,3 +45,8 @@ next-env.d.ts
 
 # learndash export drops
 /migration-data/
+
+# vercel plugin artifacts
+/.agents/
+/.claude/skills/
+skills-lock.json

@@ -45,7 +45,19 @@ type Cell = string | number | null;
 type Row = Record<string, Cell>;
 
 /** Canonical WordPress column orders, for dumps without column lists. */
-const DEFAULT_COLUMNS: Record<string, string[]> = {
+export const DEFAULT_COLUMNS: Record<string, string[]> = {
+  learndash_user_activity: [
+    "activity_id", "user_id", "post_id", "course_id", "activity_type",
+    "activity_status", "activity_started", "activity_completed",
+    "activity_updated",
+  ],
+  learndash_user_activity_meta: [
+    "activity_meta_id", "activity_id", "activity_meta_key",
+    "activity_meta_value",
+  ],
+  learndash_pro_quiz_statistic_ref: [
+    "statistic_ref_id", "quiz_id", "user_id", "create_time", "is_old",
+  ],
   users: [
     "ID", "user_login", "user_pass", "user_nicename", "user_email",
     "user_url", "user_registered", "user_activation_key", "user_status",
@@ -128,7 +140,7 @@ function parseTuple(sql: string, i: number): { values: Cell[]; next: number } {
   return { values, next: i };
 }
 
-function parseDump(sql: string, prefix: string): Record<string, Row[]> {
+export function parseDump(sql: string, prefix: string): Record<string, Row[]> {
   const wanted = new Set(Object.keys(DEFAULT_COLUMNS));
   const tables: Record<string, Row[]> = {};
   for (const t of wanted) tables[t] = [];
@@ -361,8 +373,22 @@ async function main() {
     usermetaByUser.get(uid)!.set(String(m.meta_key), String(m.meta_value ?? ""));
   }
   const meta = (pid: number, key: string) => postmetaByPost.get(pid)?.get(key);
-  const posts = t.posts.filter((p) => p.post_status === "publish" || p.post_type === "sfwd-assignment");
-  const byType = (type: string) => posts.filter((p) => p.post_type === type);
+  // Drafts are imported too (as unpublished) — TFM's real dump keeps most
+  // lessons/topics and ALL quizzes in draft status while still using them.
+  const byType = (type: string) => t.posts.filter((p) => p.post_type === type);
+
+  // LearnDash activity log — the authoritative source of quiz grades and
+  // lesson/topic completion on this site.
+  const activityMetaByActivity = new Map<number, Map<string, string>>();
+  for (const m of t.learndash_user_activity_meta ?? []) {
+    const aid = Number(m.activity_id);
+    if (!activityMetaByActivity.has(aid))
+      activityMetaByActivity.set(aid, new Map());
+    activityMetaByActivity
+      .get(aid)!
+      .set(String(m.activity_meta_key), String(m.activity_meta_value ?? ""));
+  }
+  const activities = t.learndash_user_activity ?? [];
 
   if (dryRun) {
     console.log(`\nDry run — would import:`);
@@ -370,7 +396,9 @@ async function main() {
     console.log(`  lessons:      ${byType("sfwd-lessons").length}`);
     console.log(`  topics:       ${byType("sfwd-topic").length}`);
     console.log(`  quizzes:      ${byType("sfwd-quiz").length}`);
-    console.log(`  submissions:  ${t.posts.filter((p) => p.post_type === "sfwd-assignment").length}`);
+    console.log(`  quiz grades:  ${activities.filter((a) => a.activity_type === "quiz").length} attempts`);
+    console.log(`  essays:       ${byType("sfwd-essays").length}`);
+    console.log(`  file submissions: ${byType("sfwd-assignment").length}`);
     console.log(`  users:        ${t.users.length}`);
     process.exit(0);
   }
@@ -445,7 +473,7 @@ async function main() {
         description: rawDesc,
         track: guessTrack(title),
         sortOrder: Number(p.menu_order) || 0,
-        published: true,
+        published: p.post_status === "publish",
         createdAt: wpDate(p.post_date) ?? new Date(),
       })
       .returning();
@@ -500,7 +528,7 @@ async function main() {
         title,
         contentHtml: cleanHtml(String(p.post_content ?? "")),
         sortOrder,
-        published: true,
+        published: p.post_status === "publish",
       })
       .returning();
     lessonIdByWp.set(wpId, created.id);
@@ -643,13 +671,24 @@ async function main() {
       (skippedSubs ? ` (${skippedSubs} skipped — missing user or lesson)` : "")
   );
 
-  // ---- Quiz results (usermeta _sfwd-quizzes) ---------------------------
+  // ---- Quiz grades (learndash_user_activity) ---------------------------
+  // Every quiz attempt is an activity row with meta: quiz (post id),
+  // points, total_points, percentage, pass, completed. We keep the best
+  // attempt per student per quiz and store it as an approved submission.
   const quizPosts = new Map<number, Row>();
-  for (const p of byType("sfwd-quiz")) quizPosts.set(Number(p.ID), p);
+  const quizPostByProId = new Map<number, number>();
+  for (const p of byType("sfwd-quiz")) {
+    quizPosts.set(Number(p.ID), p);
+    const pro = Number(meta(Number(p.ID), "quiz_pro_id") ?? 0);
+    if (pro) quizPostByProId.set(pro, Number(p.ID));
+  }
   const quizAssignmentByWp = new Map<number, number>();
   let newQuizGrades = 0;
 
-  async function assignmentForQuiz(wpQuizId: number): Promise<number | null> {
+  async function assignmentForQuiz(
+    wpQuizId: number,
+    totalPoints?: number
+  ): Promise<number | null> {
     const cached = quizAssignmentByWp.get(wpQuizId);
     if (cached) return cached;
     const existing = await db.query.assignments.findFirst({
@@ -673,57 +712,121 @@ async function main() {
         title: `Quiz — ${String(p.post_title ?? "Quiz")}`,
         instructionsHtml:
           "<p>This quiz was taken on the old TFM site; the score below was imported with it.</p>",
-        points: 100,
+        points: totalPoints && totalPoints > 0 ? totalPoints : 100,
       })
       .returning();
     quizAssignmentByWp.set(wpQuizId, created.id);
     return created.id;
   }
 
-  for (const u of t.users) {
-    const wpUserId = Number(u.ID);
-    const userId = userIdByWp.get(wpUserId);
+  // Best attempt per (user, quiz post).
+  type Attempt = { points: number; total: number; pct: number; when: number };
+  const bestAttempt = new Map<string, { userId: number; quizPostId: number } & Attempt>();
+  for (const a of activities) {
+    if (a.activity_type !== "quiz") continue;
+    const userId = userIdByWp.get(Number(a.user_id));
     if (!userId) continue;
-    const raw = usermetaByUser.get(wpUserId)?.get("_sfwd-quizzes");
-    if (!raw) continue;
-    const attempts = tryUnserialize(raw);
-    if (!attempts || typeof attempts !== "object") continue;
-
-    // Keep the best attempt per quiz.
-    const best = new Map<number, { pct: number; when: number }>();
-    for (const a of Object.values(attempts)) {
-      if (!a || typeof a !== "object") continue;
-      const quizId = Number((a as Record<string, Php>)["quiz"]);
-      const pct = Number((a as Record<string, Php>)["percentage"] ?? 0);
-      const when = Number((a as Record<string, Php>)["time"] ?? 0);
-      if (!quizId) continue;
-      const cur = best.get(quizId);
-      if (!cur || pct > cur.pct) best.set(quizId, { pct, when });
-    }
-    for (const [quizId, r] of best) {
-      const assignmentId = await assignmentForQuiz(quizId);
-      if (!assignmentId) continue;
-      const already = await db.query.submissions.findFirst({
-        where: and(
-          eq(submissions.assignmentId, assignmentId),
-          eq(submissions.userId, userId)
-        ),
-      });
-      if (already) continue;
-      const when = r.when ? new Date(r.when * 1000) : new Date();
-      await db.insert(submissions).values({
-        assignmentId,
-        userId,
-        text: `Imported quiz result from the old site: ${Math.round(r.pct)}%`,
-        status: "approved",
-        submittedAt: when,
-        score: Math.round(r.pct),
-        gradedAt: when,
-      });
-      newQuizGrades++;
+    const am = activityMetaByActivity.get(Number(a.activity_id));
+    if (!am) continue;
+    const quizPostId =
+      Number(am.get("quiz") ?? 0) ||
+      quizPostByProId.get(Number(am.get("pro_quizid") ?? 0)) ||
+      Number(a.post_id);
+    if (!quizPostId || !quizPosts.has(quizPostId)) continue;
+    const attempt: Attempt = {
+      points: Number(am.get("points") ?? 0),
+      total: Number(am.get("total_points") ?? 0),
+      pct: Number(am.get("percentage") ?? 0),
+      when:
+        Number(am.get("completed") ?? 0) ||
+        Number(a.activity_completed ?? 0) ||
+        Number(a.activity_updated ?? 0),
+    };
+    const key = `${userId}:${quizPostId}`;
+    const cur = bestAttempt.get(key);
+    if (!cur || attempt.pct > cur.pct) {
+      bestAttempt.set(key, { userId, quizPostId, ...attempt });
     }
   }
-  report.push(`quiz grades: ${newQuizGrades} imported`);
+  for (const r of bestAttempt.values()) {
+    const assignmentId = await assignmentForQuiz(r.quizPostId, r.total);
+    if (!assignmentId) continue;
+    const already = await db.query.submissions.findFirst({
+      where: and(
+        eq(submissions.assignmentId, assignmentId),
+        eq(submissions.userId, r.userId)
+      ),
+    });
+    if (already) continue;
+    const when = r.when ? new Date(r.when * 1000) : new Date();
+    await db.insert(submissions).values({
+      assignmentId,
+      userId: r.userId,
+      text: `Imported quiz result from the old site: ${r.points}/${r.total} (${Math.round(r.pct)}%)`,
+      status: "approved",
+      submittedAt: when,
+      score: r.points,
+      gradedAt: when,
+    });
+    newQuizGrades++;
+  }
+  report.push(`quiz grades: ${newQuizGrades} imported (best attempt per student per quiz)`);
+
+  // ---- Essay answers (sfwd-essays) -------------------------------------
+  // Essay-type quiz questions store the student's written answer as its
+  // own post (status "graded" / "not_graded"). Attach each essay's text to
+  // that student's submission on the quiz it belongs to.
+  let newEssays = 0;
+  let skippedEssays = 0;
+  for (const p of byType("sfwd-essays")) {
+    const wpId = Number(p.ID);
+    const userId = userIdByWp.get(Number(p.post_author));
+    const quizPostId =
+      Number(meta(wpId, "quiz_post_id") ?? 0) ||
+      quizPostByProId.get(Number(meta(wpId, "quiz_pro_id") ?? 0)) ||
+      0;
+    if (!userId || !quizPostId) {
+      skippedEssays++;
+      continue;
+    }
+    const assignmentId = await assignmentForQuiz(quizPostId);
+    if (!assignmentId) {
+      skippedEssays++;
+      continue;
+    }
+    const marker = `[Essay #${wpId}]`;
+    const essayText = `${marker} ${String(p.post_title ?? "Essay")}\n${String(p.post_content ?? "").trim()}`;
+    const existing = await db.query.submissions.findFirst({
+      where: and(
+        eq(submissions.assignmentId, assignmentId),
+        eq(submissions.userId, userId)
+      ),
+    });
+    if (existing) {
+      if (existing.text?.includes(marker)) continue; // already imported
+      await db
+        .update(submissions)
+        .set({ text: [existing.text, essayText].filter(Boolean).join("\n\n") })
+        .where(eq(submissions.id, existing.id));
+    } else {
+      const graded = p.post_status === "graded";
+      const when = wpDate(p.post_date) ?? new Date();
+      await db.insert(submissions).values({
+        wpPostId: wpId,
+        assignmentId,
+        userId,
+        text: essayText,
+        status: graded ? "approved" : "submitted",
+        submittedAt: when,
+        gradedAt: graded ? when : null,
+      });
+    }
+    newEssays++;
+  }
+  report.push(
+    `essay answers: ${newEssays} imported` +
+      (skippedEssays ? ` (${skippedEssays} skipped — missing user or quiz)` : "")
+  );
 
   // ---- Enrollments + lesson progress ----------------------------------
   let newEnrollments = 0;
@@ -798,6 +901,52 @@ async function main() {
       }
     }
   }
+  // The activity log is a second source of the same facts — it catches
+  // anything the usermeta pass missed.
+  for (const a of activities) {
+    const userId = userIdByWp.get(Number(a.user_id));
+    if (!userId) continue;
+    if (
+      (a.activity_type === "lesson" || a.activity_type === "topic") &&
+      Number(a.activity_status) === 1
+    ) {
+      const lessonId = lessonIdByWp.get(Number(a.post_id));
+      if (!lessonId) continue;
+      const res = await db
+        .insert(lessonProgress)
+        .values({
+          userId,
+          lessonId,
+          completedAt: Number(a.activity_completed)
+            ? new Date(Number(a.activity_completed) * 1000)
+            : new Date(),
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (res.length > 0) newProgress++;
+    } else if (a.activity_type === "course") {
+      const courseId =
+        courseIdByWp.get(Number(a.course_id) || 0) ??
+        courseIdByWp.get(Number(a.post_id) || 0);
+      if (!courseId) continue;
+      const res = await db
+        .insert(enrollments)
+        .values({
+          userId,
+          courseId,
+          enrolledAt: Number(a.activity_started)
+            ? new Date(Number(a.activity_started) * 1000)
+            : new Date(),
+          completedAt:
+            Number(a.activity_status) === 1 && Number(a.activity_completed)
+              ? new Date(Number(a.activity_completed) * 1000)
+              : null,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (res.length > 0) newEnrollments++;
+    }
+  }
   report.push(`enrollments: ${newEnrollments} imported`);
   report.push(`lesson completions: ${newProgress} imported`);
 
@@ -813,7 +962,10 @@ Next steps:
   process.exit(0);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Only run when executed directly (analyze-dump.ts imports the parser).
+if (process.argv[1]?.includes("import-learndash")) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
