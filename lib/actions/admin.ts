@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   assignments,
   courses,
@@ -236,6 +236,42 @@ export async function setUserRole(formData: FormData): Promise<void> {
   if (role !== "student" && role !== "admin") return;
   const db = await getDb();
   await db.update(users).set({ role }).where(eq(users.id, userId));
+  revalidatePath("/admin/students", "layout");
+}
+
+/**
+ * Bulk archive / restore / delete from the students table. Only touches
+ * student accounts — admins (and yourself) are never affected, so a stray
+ * select-all can't lock anyone out or erase an admin.
+ */
+export async function bulkStudents(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const op = String(formData.get("op"));
+  const ids = String(formData.get("ids") ?? "")
+    .split(",")
+    .map((s) => Number(s))
+    .filter((n) => Number.isInteger(n) && n !== admin.id);
+  if (ids.length === 0) return;
+  if (op !== "archive" && op !== "restore" && op !== "delete") return;
+
+  const db = await getDb();
+  const targets = await db.query.users.findMany({
+    where: inArray(users.id, ids),
+  });
+  const studentIds = targets
+    .filter((u) => u.role === "student")
+    .map((u) => u.id);
+  if (studentIds.length === 0) return;
+
+  if (op === "delete") {
+    // Cascades: enrollments, lesson progress, and submissions go with them.
+    await db.delete(users).where(inArray(users.id, studentIds));
+  } else {
+    await db
+      .update(users)
+      .set({ active: op === "restore" })
+      .where(inArray(users.id, studentIds));
+  }
   revalidatePath("/admin/students", "layout");
 }
 

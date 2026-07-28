@@ -38,7 +38,10 @@ export default function ScrollReveal() {
           observer.unobserve(entry.target);
         }
       },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.05 }
+      // threshold 0, not 0.05: a very tall section (e.g. the 500-row
+      // students table) can never have 5% of itself visible at once, so a
+      // ratio threshold would leave it permanently faded out.
+      { rootMargin: "0px 0px -12% 0px", threshold: 0 }
     );
     for (const s of sections) {
       s.classList.add("reveal-pending");
