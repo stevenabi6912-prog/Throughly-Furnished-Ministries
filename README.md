@@ -189,6 +189,7 @@ regardless — they live in the new database).
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob for assignment file uploads. Absent locally → files in `.data/uploads`. | Set by Vercel when you connect Blob |
 | `AUTH_SECRET` | Signs login session cookies. **Required in production.** | You, in Vercel env vars |
 | `NEXT_PUBLIC_SITE_URL` | Public URL for social previews. | Optional |
+| `REGISTRATION_CODE` | The keyword required to register (bot defense). Currently `Furnished316` — change it anytime in Vercel env vars, then redeploy. Unset locally, so dev registration needs no keyword. | Vercel env vars |
 
 ## Known notes
 
