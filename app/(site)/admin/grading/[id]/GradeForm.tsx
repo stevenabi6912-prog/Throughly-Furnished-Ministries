@@ -34,10 +34,14 @@ export default function GradeForm({
   submissionId,
   maxPoints,
   lateWeeks = 0,
+  defaultScore = null,
+  defaultFeedback = null,
 }: {
   submissionId: number;
   maxPoints: number;
   lateWeeks?: number;
+  defaultScore?: number | null;
+  defaultFeedback?: string | null;
 }) {
   const [state, action] = useActionState(gradeSubmission, undefined);
   const penalty = Math.round(maxPoints * 0.1 * lateWeeks);
@@ -67,6 +71,7 @@ export default function GradeForm({
           type="number"
           min={0}
           max={maxPoints}
+          defaultValue={defaultScore ?? ""}
           className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-brand-500"
         />
       </label>
@@ -75,6 +80,7 @@ export default function GradeForm({
         <textarea
           name="feedback"
           rows={5}
+          defaultValue={defaultFeedback ?? ""}
           className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-brand-500"
           placeholder="What was done well, what to work on…"
         />

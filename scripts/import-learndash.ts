@@ -449,7 +449,6 @@ async function main() {
     console.log(`  quizzes:      ${byType("sfwd-quiz").length}`);
     console.log(`  quiz grades:  ${activities.filter((a) => a.activity_type === "quiz").length} attempts`);
     console.log(`  essays:       ${byType("sfwd-essays").length}`);
-    console.log(`  file submissions: ${byType("sfwd-assignment").length}`);
     console.log(`  users:        ${t.users.length}`);
     process.exit(0);
   }
@@ -681,112 +680,9 @@ async function main() {
     if (courseId) noteEnrollment(userId, courseId, at);
   }
 
-  // ---- File submissions (sfwd-assignment posts) ------------------------
-  const stepAssignmentByOldParent = new Map<number, number>();
-
-  async function assignmentForStep(oldParentId: number): Promise<
-    { id: number; courseId: number } | null
-  > {
-    const step = resolveStep(oldParentId);
-    if (!step) return null;
-    const cached = stepAssignmentByOldParent.get(oldParentId);
-    if (cached) return { id: cached, courseId: step.courseId };
-    const marker = -oldParentId;
-    const existing = await db.query.assignments.findFirst({
-      where: eq(assignments.wpPostId, marker),
-    });
-    if (existing) {
-      stepAssignmentByOldParent.set(oldParentId, existing.id);
-      return { id: existing.id, courseId: step.courseId };
-    }
-    let title = "Assignment";
-    if (step.lessonId) {
-      const l = await db.query.lessons.findFirst({
-        where: eq(lessons.id, step.lessonId),
-      });
-      if (l) title = `Assignment — ${l.title}`;
-    } else {
-      const c = await db.query.courses.findFirst({
-        where: eq(courses.id, step.courseId),
-      });
-      if (c) title = `Assignment — ${c.title}`;
-    }
-    const [created] = await db
-      .insert(assignments)
-      .values({
-        wpPostId: marker,
-        courseId: step.courseId,
-        lessonId: step.lessonId,
-        title,
-        instructionsHtml:
-          "<p>Complete the assignment for this lesson and upload your work.</p>",
-        points: 100,
-      })
-      .returning();
-    stepAssignmentByOldParent.set(oldParentId, created.id);
-    return { id: created.id, courseId: step.courseId };
-  }
-
-  // Mentor feedback: comments on assignment posts.
-  const commentsByPost = new Map<number, string[]>();
-  for (const c of t.comments) {
-    if (String(c.comment_approved) !== "1") continue;
-    const pid = Number(c.comment_post_ID);
-    const line = `${String(c.comment_author ?? "Mentor")}: ${String(c.comment_content ?? "")}`.trim();
-    if (!commentsByPost.has(pid)) commentsByPost.set(pid, []);
-    commentsByPost.get(pid)!.push(line);
-  }
-
-  let newSubs = 0;
-  let skippedSubs = 0;
-  for (const p of byType("sfwd-assignment")) {
-    const wpId = Number(p.ID);
-    const userId = userIdByWp.get(Number(p.post_author));
-    const parent = Number(meta(wpId, "lesson_id") ?? 0);
-    const assignment = userId ? await assignmentForStep(parent) : null;
-    if (!userId || !assignment) {
-      skippedSubs++;
-      continue;
-    }
-    const submittedAt = wpDate(p.post_date) ?? new Date();
-    noteEnrollment(userId, assignment.courseId, submittedAt);
-
-    const existing = await db.query.submissions.findFirst({
-      where: eq(submissions.wpPostId, wpId),
-    });
-    if (existing) continue;
-
-    const approved = String(meta(wpId, "approval_status") ?? "") === "1";
-    const pointsMeta = meta(wpId, "points");
-    const score =
-      pointsMeta !== undefined && pointsMeta !== "" && !isNaN(Number(pointsMeta))
-        ? Number(pointsMeta)
-        : null;
-    let fileUrl = meta(wpId, "file_link") ?? null;
-    if (fileUrl) {
-      fileUrl = fileUrl.replace(/^https?:\/\/[^/]*tfmchelsea[^/]*/i, OLD_SITE);
-    }
-    const feedback = commentsByPost.get(wpId)?.join("\n\n") ?? null;
-
-    await db.insert(submissions).values({
-      wpPostId: wpId,
-      assignmentId: assignment.id,
-      userId,
-      text: null,
-      fileUrl,
-      fileName: meta(wpId, "file_name") ?? (String(p.post_title ?? "") || null),
-      status: approved ? "approved" : "submitted",
-      submittedAt,
-      score: approved ? score ?? 100 : score,
-      feedback,
-      gradedAt: approved || feedback ? wpDate(p.post_modified) ?? new Date() : null,
-    });
-    newSubs++;
-  }
-  report.push(
-    `file submissions: ${newSubs} imported` +
-      (skippedSubs ? ` (${skippedSubs} skipped — missing user or lesson)` : "")
-  );
+  // Note: the old sfwd-assignment file uploads are deliberately NOT
+  // imported — TFM no longer uses that mechanism (homework now lives on
+  // lessons, and quiz/essay grades below are the transcript).
 
   // ---- Quiz grades (learndash_user_activity) ---------------------------
   // Every attempt is an activity row with meta (points, total_points,

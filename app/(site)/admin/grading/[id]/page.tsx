@@ -115,11 +115,32 @@ export default async function GradeSubmissionPage({
                 {assignment.dueAt &&
                   ` · was due ${formatEastern(assignment.dueAt)}`}
               </p>
+              {submission.aiScore !== null && submission.status === "submitted" && (
+                <div className="mt-4 rounded-lg bg-brand-500/5 p-3 ring-1 ring-brand-500/20">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">
+                    Claude&rsquo;s suggestion — review before approving
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    {submission.aiScore}/{assignment.points}
+                  </p>
+                  {submission.aiFeedback && (
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">
+                      {submission.aiFeedback}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    Pre-filled below — edit anything before approving. The
+                    student sees nothing until you do.
+                  </p>
+                </div>
+              )}
               {submission.status === "submitted" ? (
                 <GradeForm
                   submissionId={submission.id}
                   maxPoints={assignment.points}
                   lateWeeks={weeksLate(submission.submittedAt, assignment.dueAt)}
+                  defaultScore={submission.aiScore}
+                  defaultFeedback={submission.aiFeedback}
                 />
               ) : (
                 <p className="mt-4 text-sm text-slate-600">

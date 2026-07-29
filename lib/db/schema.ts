@@ -161,6 +161,11 @@ export const submissions = pgTable("submissions", {
   fileName: text("file_name"),
   status: submissionStatusEnum("status").notNull().default("submitted"),
   submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  // Claude's suggested grade, generated right after submission. Never
+  // shown to the student — it pre-fills the mentor's grading form, and
+  // the mentor approves (or edits) before anything is released.
+  aiScore: integer("ai_score"),
+  aiFeedback: text("ai_feedback"),
   // Grading — filled in by an admin.
   score: integer("score"),
   feedback: text("feedback"),

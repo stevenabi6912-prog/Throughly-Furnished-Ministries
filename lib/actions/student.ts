@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { and, eq } from "drizzle-orm";
 import {
   assignments,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { saveSubmissionFile } from "@/lib/uploads";
+import { aiGradeSubmission } from "@/lib/ai-grader";
 
 export type FormState = { error?: string; ok?: boolean } | undefined;
 
@@ -125,13 +127,19 @@ export async function submitAssignment(
     }
   }
 
-  await db.insert(submissions).values({
-    assignmentId,
-    userId: user.id,
-    text: text || null,
-    fileUrl,
-    fileName,
-  });
+  const [created] = await db
+    .insert(submissions)
+    .values({
+      assignmentId,
+      userId: user.id,
+      text: text || null,
+      fileUrl,
+      fileName,
+    })
+    .returning();
+  // Claude drafts a suggested grade in the background; a mentor reviews it
+  // in the grading queue before the student sees anything.
+  after(() => aiGradeSubmission(created.id));
   revalidatePath(`/assignments/${assignmentId}`);
   revalidatePath("/dashboard");
   revalidatePath("/grades");

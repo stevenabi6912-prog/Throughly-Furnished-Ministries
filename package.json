@@ -12,6 +12,7 @@
     "import:learndash": "tsx scripts/import-learndash.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@electric-sql/pglite": "^0.3.14",
     "@tailwindcss/typography": "^0.5.19",
     "@vercel/blob": "^2.0.0",
