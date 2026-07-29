@@ -16,6 +16,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { cleanHtml } from "@/lib/html";
 import { saveContentFile } from "@/lib/uploads";
 import { youTubeEmbedUrl } from "@/lib/youtube";
+import { easternToUtc, saturdayDeadlineAfter, weeksLate } from "@/lib/time";
 
 export type FormState = { error?: string; ok?: boolean } | undefined;
 
@@ -137,8 +138,15 @@ export async function saveLesson(
   }
 
   if (!title) return { error: "The lesson needs a title." };
+
+  // Scheduling: when the lesson opens (Eastern time). Blank = right away.
+  const availableAtRaw = String(formData.get("availableAt") ?? "").trim();
+  const availableAt = availableAtRaw ? easternToUtc(availableAtRaw) : null;
+
   const db = await getDb();
-  const values = { title, contentHtml, sortOrder, published, videoUrl, worksheetUrl };
+  const values = {
+    title, contentHtml, sortOrder, published, videoUrl, worksheetUrl, availableAt,
+  };
   let lessonId = id;
   if (id) {
     await db.update(lessons).set(values).where(eq(lessons.id, id));
@@ -156,7 +164,10 @@ export async function saveLesson(
   }
 
   // "This lesson has homework" — make sure a turn-in assignment exists.
+  // Its due date follows the schedule: the Saturday (11:59 PM Eastern)
+  // after the lesson opens.
   if (hasHomework && lessonId) {
+    const dueAt = availableAt ? saturdayDeadlineAfter(availableAt) : null;
     const existing = await db.query.assignments.findFirst({
       where: eq(assignments.lessonId, lessonId),
     });
@@ -168,7 +179,13 @@ export async function saveLesson(
         instructionsHtml:
           "<p>Complete the worksheet for this lesson and turn it in here.</p>",
         points: 100,
+        dueAt,
       });
+    } else if (dueAt) {
+      await db
+        .update(assignments)
+        .set({ dueAt })
+        .where(eq(assignments.lessonId, lessonId));
     }
   }
 
@@ -203,7 +220,8 @@ export async function saveAssignment(
   );
   const points = Math.max(1, Number(formData.get("points") ?? 100) || 100);
   const dueAtRaw = String(formData.get("dueAt") ?? "");
-  const dueAt = dueAtRaw ? new Date(dueAtRaw) : null;
+  // Due dates mean end of that day, Michigan time.
+  const dueAt = dueAtRaw ? easternToUtc(`${dueAtRaw}T23:59`) : null;
   const published = formData.get("published") === "on";
 
   if (!title) return { error: "The assignment needs a title." };
@@ -238,8 +256,9 @@ export async function gradeSubmission(
   const id = Number(formData.get("id"));
   const status = String(formData.get("status") ?? "");
   const scoreRaw = String(formData.get("score") ?? "").trim();
-  const score = scoreRaw === "" ? null : Number(scoreRaw);
-  const feedback = String(formData.get("feedback") ?? "").trim() || null;
+  let score = scoreRaw === "" ? null : Number(scoreRaw);
+  let feedback = String(formData.get("feedback") ?? "").trim() || null;
+  const applyLatePenalty = formData.get("applyLatePenalty") === "on";
 
   if (status !== "approved" && status !== "returned")
     return { error: "Choose approve or return." };
@@ -249,6 +268,28 @@ export async function gradeSubmission(
     return { error: "Enter a score to approve this submission." };
 
   const db = await getDb();
+
+  // Late policy: 10% of the assignment's points off per week late.
+  if (status === "approved" && applyLatePenalty && score !== null) {
+    const submission = await db.query.submissions.findFirst({
+      where: eq(submissions.id, id),
+    });
+    const assignment = submission
+      ? await db.query.assignments.findFirst({
+          where: eq(assignments.id, submission.assignmentId),
+        })
+      : null;
+    if (submission && assignment) {
+      const weeks = weeksLate(submission.submittedAt, assignment.dueAt);
+      if (weeks > 0) {
+        const penalty = Math.round(assignment.points * 0.1 * weeks);
+        score = Math.max(0, score - penalty);
+        const note = `Late penalty: −${penalty} points (${weeks} week${weeks === 1 ? "" : "s"} late, 10% per week).`;
+        feedback = feedback ? `${feedback}\n\n${note}` : note;
+      }
+    }
+  }
+
   await db
     .update(submissions)
     .set({
@@ -286,6 +327,30 @@ export async function setStudentEnrollment(formData: FormData): Promise<void> {
       );
   }
   revalidatePath("/admin/students", "layout");
+}
+
+/**
+ * Set (or clear) the official final grade for a course on a student's
+ * record — overrides the computed average on the report card. This is how
+ * grades from the paper gradebook get onto the site.
+ */
+export async function setGradeOverride(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const userId = Number(formData.get("userId"));
+  const courseId = Number(formData.get("courseId"));
+  const raw = String(formData.get("pct") ?? "").trim();
+  const pct = raw === "" ? null : Math.max(0, Math.min(100, Math.round(Number(raw))));
+  if (pct !== null && !Number.isFinite(pct)) return;
+  const db = await getDb();
+  await db
+    .insert(enrollments)
+    .values({ userId, courseId, overridePct: pct })
+    .onConflictDoUpdate({
+      target: [enrollments.userId, enrollments.courseId],
+      set: { overridePct: pct },
+    });
+  revalidatePath("/admin/students", "layout");
+  revalidatePath("/grades");
 }
 
 /**

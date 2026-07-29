@@ -61,15 +61,22 @@ export function buildReportCard(
   gradebook: {
     course: Course;
     completedAt: Date | null;
+    overridePct?: number | null;
     earned: number;
     possible: number;
   }[]
 ): ReportCard {
   const rows: ReportRow[] = gradebook.map(
-    ({ course, completedAt, earned, possible }) => {
+    ({ course, completedAt, overridePct, earned, possible }) => {
       if (course.track === "biblical-studies") {
-        const hasGrade = possible > 0;
-        const pct = hasGrade ? (earned / possible) * 100 : null;
+        const hasGrade = possible > 0 || overridePct != null;
+        // An admin-entered official grade beats the computed average.
+        const pct =
+          overridePct != null
+            ? overridePct
+            : possible > 0
+              ? (earned / possible) * 100
+              : null;
         return {
           course,
           kind: "graded" as const,

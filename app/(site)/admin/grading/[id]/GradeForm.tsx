@@ -33,14 +33,33 @@ function GradeButtons() {
 export default function GradeForm({
   submissionId,
   maxPoints,
+  lateWeeks = 0,
 }: {
   submissionId: number;
   maxPoints: number;
+  lateWeeks?: number;
 }) {
   const [state, action] = useActionState(gradeSubmission, undefined);
+  const penalty = Math.round(maxPoints * 0.1 * lateWeeks);
   return (
     <form action={action} className="mt-4 space-y-4">
       <input type="hidden" name="id" value={submissionId} />
+      {lateWeeks > 0 && (
+        <div className="rounded-lg bg-red-50 p-3">
+          <p className="text-sm font-semibold text-red-700">
+            Turned in {lateWeeks} week{lateWeeks === 1 ? "" : "s"} late
+          </p>
+          <label className="mt-2 flex items-center gap-2 text-sm text-red-800">
+            <input
+              type="checkbox"
+              name="applyLatePenalty"
+              defaultChecked
+              className="h-4 w-4 rounded border-red-300"
+            />
+            Apply the late penalty (−{penalty} points — 10% per week)
+          </label>
+        </div>
+      )}
       <label className="block text-sm font-medium text-slate-700">
         Score
         <input

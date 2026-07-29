@@ -7,10 +7,23 @@ import SubmitButton from "@/components/SubmitButton";
 const inputClass =
   "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-brand-500";
 
-export default function RegisterForm() {
+export default function RegisterForm({
+  requireKeyword,
+}: {
+  requireKeyword: boolean;
+}) {
   const [state, action] = useActionState(register, undefined);
   return (
     <form action={action} className="mt-6 space-y-4">
+      {requireKeyword && (
+        <label className="block text-sm font-medium text-slate-700">
+          Registration keyword
+          <input name="keyword" type="text" required className={inputClass} />
+          <span className="mt-1 block text-xs font-normal text-slate-500">
+            Given out by your TFM teacher.
+          </span>
+        </label>
+      )}
       <label className="block text-sm font-medium text-slate-700">
         Full name
         <input name="name" type="text" autoComplete="name" required className={inputClass} />

@@ -5,6 +5,7 @@ import { assignments, courses, getDb, submissions, users } from "@/lib/db";
 import PageHero from "@/components/PageHero";
 import StatusBadge from "@/components/StatusBadge";
 import GradeForm from "./GradeForm";
+import { formatEastern, weeksLate } from "@/lib/time";
 
 export default async function GradeSubmissionPage({
   params,
@@ -111,11 +112,14 @@ export default async function GradeSubmissionPage({
               <h2 className="text-lg font-bold text-slate-900">Grade</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Out of {assignment.points} points
+                {assignment.dueAt &&
+                  ` · was due ${formatEastern(assignment.dueAt)}`}
               </p>
               {submission.status === "submitted" ? (
                 <GradeForm
                   submissionId={submission.id}
                   maxPoints={assignment.points}
+                  lateWeeks={weeksLate(submission.submittedAt, assignment.dueAt)}
                 />
               ) : (
                 <p className="mt-4 text-sm text-slate-600">

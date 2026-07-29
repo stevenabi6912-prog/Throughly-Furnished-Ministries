@@ -54,6 +54,16 @@ export async function register(
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const keyword = String(formData.get("keyword") ?? "").trim();
+
+  // Bot defense: registering requires the keyword TFM gives its students
+  // (the old site drowned in fake signups). Set via REGISTRATION_CODE.
+  const requiredKeyword = process.env.REGISTRATION_CODE;
+  if (requiredKeyword && keyword.toLowerCase() !== requiredKeyword.toLowerCase())
+    return {
+      error:
+        "That registration keyword isn't right — ask your TFM teacher for it.",
+    };
 
   if (!name) return { error: "Enter your name." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))

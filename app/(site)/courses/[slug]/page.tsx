@@ -11,6 +11,7 @@ import {
 } from "@/lib/data";
 import PageHero from "@/components/PageHero";
 import StatusBadge from "@/components/StatusBadge";
+import { formatEastern } from "@/lib/time";
 
 // A course a student is part of (the one in session, or a past one).
 export default async function CoursePage({
@@ -54,31 +55,58 @@ export default async function CoursePage({
             <p className="mt-4 text-slate-600">Lessons are being prepared.</p>
           ) : (
             <ol className="mt-6 space-y-3">
-              {lessons.map((lesson, i) => (
-                <li key={lesson.id}>
-                  <Link
-                    href={`/courses/${course.slug}/${lesson.slug}`}
-                    className="hover-lift flex items-center gap-4 rounded-xl bg-white p-4 shadow-sm"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                        done.has(lesson.id)
-                          ? "bg-green-100 text-green-700"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
+              {lessons.map((lesson, i) => {
+                const locked =
+                  user.role !== "admin" &&
+                  lesson.availableAt &&
+                  lesson.availableAt > new Date();
+                if (locked) {
+                  return (
+                    <li
+                      key={lesson.id}
+                      className="flex items-center gap-4 rounded-xl bg-white/60 p-4 shadow-sm"
                     >
-                      {done.has(lesson.id) ? "✓" : i + 1}
-                    </span>
-                    <span className="flex-1 font-semibold text-slate-900">
-                      {lesson.title}
-                    </span>
-                    {(assignmentCountByLesson.get(lesson.id) ?? 0) > 0 && (
-                      <span className="text-xs text-slate-500">homework</span>
-                    )}
-                  </Link>
-                </li>
-              ))}
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm"
+                      >
+                        🔒
+                      </span>
+                      <span className="flex-1 font-semibold text-slate-500">
+                        {lesson.title}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        Opens {formatEastern(lesson.availableAt!)}
+                      </span>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={lesson.id}>
+                    <Link
+                      href={`/courses/${course.slug}/${lesson.slug}`}
+                      className="hover-lift flex items-center gap-4 rounded-xl bg-white p-4 shadow-sm"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                          done.has(lesson.id)
+                            ? "bg-green-100 text-green-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {done.has(lesson.id) ? "✓" : i + 1}
+                      </span>
+                      <span className="flex-1 font-semibold text-slate-900">
+                        {lesson.title}
+                      </span>
+                      {(assignmentCountByLesson.get(lesson.id) ?? 0) > 0 && (
+                        <span className="text-xs text-slate-500">homework</span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
             </ol>
           )}
 

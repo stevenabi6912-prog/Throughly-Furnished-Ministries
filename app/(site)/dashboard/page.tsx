@@ -10,6 +10,7 @@ import {
 } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import PageHero from "@/components/PageHero";
+import { formatEastern } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -25,8 +26,16 @@ export default async function DashboardPage() {
     ? await getCompletedLessonIds(user.id, content.lessons.map((l) => l.id))
     : new Set<number>();
   const now = new Date();
+  // Lessons that haven't opened yet stay locked — and their homework
+  // stays out of the to-do list until they do.
+  const lockedLessonIds = new Set(
+    content?.lessons
+      .filter((l) => l.availableAt && l.availableAt > now)
+      .map((l) => l.id) ?? []
+  );
   const openAssignments =
     content?.assignments.filter((a) => {
+      if (a.lessonId && lockedLessonIds.has(a.lessonId)) return false;
       const sub = latestByAssignment.get(a.id);
       return !sub || sub.status === "returned";
     }) ?? [];
@@ -93,7 +102,7 @@ export default async function DashboardPage() {
                           }`}
                         >
                           {assignment.dueAt
-                            ? `${isLate ? "Past due — " : "Due "}${assignment.dueAt.toLocaleDateString()}`
+                            ? `${isLate ? "Past due — " : "Due "}${formatEastern(assignment.dueAt)}`
                             : "Turn in →"}
                         </span>
                       </Link>
@@ -158,28 +167,48 @@ export default async function DashboardPage() {
                     </p>
                   ) : (
                     <ol className="mt-3 space-y-2">
-                      {content.lessons.map((lesson, i) => (
-                        <li key={lesson.id}>
-                          <Link
-                            href={`/courses/${course.slug}/${lesson.slug}`}
-                            className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                      {content.lessons.map((lesson, i) =>
+                        lockedLessonIds.has(lesson.id) ? (
+                          <li
+                            key={lesson.id}
+                            className="flex items-center gap-3 rounded-lg px-2 py-2 opacity-60"
                           >
                             <span
                               aria-hidden="true"
-                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                                done.has(lesson.id)
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs"
                             >
-                              {done.has(lesson.id) ? "✓" : i + 1}
+                              🔒
                             </span>
-                            <span className="font-medium text-slate-900">
+                            <span className="font-medium text-slate-600">
                               {lesson.title}
                             </span>
-                          </Link>
-                        </li>
-                      ))}
+                            <span className="ml-auto text-xs text-slate-500">
+                              Opens {formatEastern(lesson.availableAt!)}
+                            </span>
+                          </li>
+                        ) : (
+                          <li key={lesson.id}>
+                            <Link
+                              href={`/courses/${course.slug}/${lesson.slug}`}
+                              className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                  done.has(lesson.id)
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-slate-100 text-slate-500"
+                                }`}
+                              >
+                                {done.has(lesson.id) ? "✓" : i + 1}
+                              </span>
+                              <span className="font-medium text-slate-900">
+                                {lesson.title}
+                              </span>
+                            </Link>
+                          </li>
+                        )
+                      )}
                     </ol>
                   )}
 

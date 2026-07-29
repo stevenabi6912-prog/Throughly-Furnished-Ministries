@@ -85,6 +85,9 @@ export const lessons = pgTable(
     // worksheet, shown above the content and the homework turn-in.
     videoUrl: text("video_url"),
     worksheetUrl: text("worksheet_url"),
+    // When the lesson unlocks for students (null = available right away).
+    // TFM's rhythm: lessons open Sunday 3 PM Eastern.
+    availableAt: timestamp("available_at"),
     sortOrder: integer("sort_order").notNull().default(0),
     published: boolean("published").notNull().default(true),
   },
@@ -121,6 +124,10 @@ export const enrollments = pgTable(
       .references(() => courses.id, { onDelete: "cascade" }),
     enrolledAt: timestamp("enrolled_at").notNull().defaultNow(),
     completedAt: timestamp("completed_at"),
+    // Official final grade (percent) set by an admin — overrides the
+    // computed average on the report card. Covers courses graded on
+    // paper before the site existed.
+    overridePct: integer("override_pct"),
   },
   (t) => [uniqueIndex("enrollments_user_course_idx").on(t.userId, t.courseId)]
 );

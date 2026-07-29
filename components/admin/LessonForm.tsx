@@ -8,6 +8,26 @@ import type { Lesson } from "@/lib/db/schema";
 const inputClass =
   "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-brand-500";
 
+// Default schedule: the coming Sunday at 3:00 PM (Michigan time — the
+// value is interpreted as Eastern by the server).
+function nextSunday3pm(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T15:00`;
+}
+
+// A stored UTC date → Eastern wall time for the datetime-local input.
+function toEasternInput(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Detroit",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour") === "24" ? "00" : get("hour")}:${get("minute")}`;
+}
+
 // The standard TFM lesson: title, YouTube video, fillable PDF worksheet,
 // and a homework turn-in. Content HTML is optional extra material.
 export default function LessonForm({
@@ -39,6 +59,26 @@ export default function LessonForm({
           />
         </label>
       </div>
+      <label className="block text-sm font-medium text-slate-700">
+        Class opens{" "}
+        <span className="font-normal text-slate-500">
+          (Michigan time — students can&rsquo;t open the lesson before this;
+          homework is due the Saturday after at 11:59 PM, then 10% off per
+          week late)
+        </span>
+        <input
+          name="availableAt"
+          type="datetime-local"
+          defaultValue={
+            lesson?.availableAt
+              ? toEasternInput(lesson.availableAt)
+              : lesson
+                ? ""
+                : nextSunday3pm()
+          }
+          className={inputClass}
+        />
+      </label>
       <label className="block text-sm font-medium text-slate-700">
         YouTube video link{" "}
         <span className="font-normal text-slate-500">(the teaching video for this lesson)</span>

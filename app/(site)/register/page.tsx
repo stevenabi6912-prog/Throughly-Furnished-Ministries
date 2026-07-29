@@ -18,7 +18,7 @@ export default async function RegisterPage() {
           Create your account to enroll in TFM courses, submit assignments,
           and track your progress.
         </p>
-        <RegisterForm />
+        <RegisterForm requireKeyword={Boolean(process.env.REGISTRATION_CODE)} />
         <p className="mt-6 text-sm text-slate-600">
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-brand-700 hover:underline">

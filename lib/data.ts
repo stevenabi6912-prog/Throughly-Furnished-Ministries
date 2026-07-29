@@ -185,6 +185,7 @@ export async function getGradebook(userId: number) {
   const result: {
     course: Course;
     completedAt: Date | null;
+    overridePct: number | null;
     rows: { assignment: Assignment; submission: Submission | null }[];
     earned: number;
     possible: number;
@@ -195,6 +196,9 @@ export async function getGradebook(userId: number) {
   });
   const completedByCourse = new Map(
     enrollmentRows.map((e) => [e.courseId, e.completedAt])
+  );
+  const overrideByCourse = new Map(
+    enrollmentRows.map((e) => [e.courseId, e.overridePct])
   );
   for (const course of enrolled) {
     const { assignments: courseAssignments } = await getCourseContent(
@@ -219,6 +223,7 @@ export async function getGradebook(userId: number) {
     result.push({
       course,
       completedAt: completedByCourse.get(course.id) ?? null,
+      overridePct: overrideByCourse.get(course.id) ?? null,
       rows,
       earned,
       possible,

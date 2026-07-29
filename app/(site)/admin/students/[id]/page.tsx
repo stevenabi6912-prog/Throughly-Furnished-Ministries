@@ -5,6 +5,7 @@ import { courses, getDb, users } from "@/lib/db";
 import { getGradebook } from "@/lib/data";
 import {
   setCourseCompletion,
+  setGradeOverride,
   setUserActive,
   setUserRole,
 } from "@/lib/actions/admin";
@@ -83,37 +84,63 @@ export default async function AdminStudentDetailPage({
                   const record = recordByCourse.get(course.id);
                   const completed = Boolean(record?.completedAt);
                   return (
-                    <li
-                      key={course.id}
-                      className="flex items-center justify-between gap-2 text-sm"
-                    >
-                      <span
-                        className={
-                          record ? "text-slate-800" : "text-slate-400"
-                        }
-                      >
-                        {course.title}
-                        {completed && " ✓"}
-                      </span>
-                      <form action={setCourseCompletion}>
-                        <input type="hidden" name="userId" value={student.id} />
-                        <input type="hidden" name="courseId" value={course.id} />
-                        <input
-                          type="hidden"
-                          name="complete"
-                          value={completed ? "0" : "1"}
-                        />
-                        <button
-                          type="submit"
-                          className={`rounded px-2 py-1 text-xs font-semibold ${
-                            completed
-                              ? "text-slate-500 hover:bg-slate-100"
-                              : "text-brand-700 hover:bg-slate-100"
-                          }`}
+                    <li key={course.id} className="text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={
+                            record ? "text-slate-800" : "text-slate-400"
+                          }
                         >
-                          {completed ? "Un-complete" : "Mark complete"}
-                        </button>
-                      </form>
+                          {course.title}
+                          {completed && " ✓"}
+                        </span>
+                        <form action={setCourseCompletion}>
+                          <input type="hidden" name="userId" value={student.id} />
+                          <input type="hidden" name="courseId" value={course.id} />
+                          <input
+                            type="hidden"
+                            name="complete"
+                            value={completed ? "0" : "1"}
+                          />
+                          <button
+                            type="submit"
+                            className={`rounded px-2 py-1 text-xs font-semibold ${
+                              completed
+                                ? "text-slate-500 hover:bg-slate-100"
+                                : "text-brand-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {completed ? "Un-complete" : "Mark complete"}
+                          </button>
+                        </form>
+                      </div>
+                      {course.track === "biblical-studies" && (
+                        <form
+                          action={setGradeOverride}
+                          className="mt-1 flex items-center gap-1.5 pl-3"
+                        >
+                          <input type="hidden" name="userId" value={student.id} />
+                          <input type="hidden" name="courseId" value={course.id} />
+                          <label className="text-xs text-slate-500">
+                            Official grade %
+                            <input
+                              name="pct"
+                              type="number"
+                              min={0}
+                              max={100}
+                              defaultValue={record?.overridePct ?? ""}
+                              placeholder="auto"
+                              className="ml-1.5 w-16 rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-900"
+                            />
+                          </label>
+                          <button
+                            type="submit"
+                            className="rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-slate-100"
+                          >
+                            Set
+                          </button>
+                        </form>
+                      )}
                     </li>
                   );
                 })}

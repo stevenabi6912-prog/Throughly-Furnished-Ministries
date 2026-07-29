@@ -11,6 +11,7 @@ import {
 } from "@/lib/data";
 import { toggleLessonComplete } from "@/lib/actions/student";
 import { youTubeEmbedUrl } from "@/lib/youtube";
+import { formatEastern } from "@/lib/time";
 import SubmitButton from "@/components/SubmitButton";
 import StatusBadge from "@/components/StatusBadge";
 import SubmissionForm from "@/app/(site)/assignments/[id]/SubmissionForm";
@@ -33,6 +34,31 @@ export default async function LessonPage({
   const index = lessons.findIndex((l) => l.slug === lessonSlug);
   if (index === -1) notFound();
   const lesson = lessons[index];
+
+  // Scheduled lessons stay locked for students until they open.
+  if (
+    user.role !== "admin" &&
+    lesson.availableAt &&
+    lesson.availableAt > new Date()
+  ) {
+    return (
+      <section className="bg-slate-50 px-4 py-24 text-center">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-10 shadow-sm">
+          <p className="text-4xl" aria-hidden="true">🔒</p>
+          <h1 className="mt-4 text-2xl text-slate-900">{lesson.title}</h1>
+          <p className="mt-3 text-slate-600">
+            This class opens {formatEastern(lesson.availableAt)}.
+          </p>
+          <Link
+            href={`/courses/${course.slug}`}
+            className="mt-6 inline-block rounded-lg bg-brand-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-brand-600"
+          >
+            Back to {course.title}
+          </Link>
+        </div>
+      </section>
+    );
+  }
   const prev = index > 0 ? lessons[index - 1] : null;
   const next = index < lessons.length - 1 ? lessons[index + 1] : null;
   const done = await getCompletedLessonIds(user.id, [lesson.id]);
