@@ -137,6 +137,19 @@ export async function saveLesson(
     }
   }
 
+  // The answer key: teacher-only reference the AI grader compares against.
+  let answerKeyUrl = String(formData.get("answerKeyUrl") ?? "").trim() || null;
+  const answerKeyFile = formData.get("answerKeyFile");
+  if (answerKeyFile instanceof File && answerKeyFile.size > 0) {
+    if (!answerKeyFile.name.toLowerCase().endsWith(".pdf"))
+      return { error: "The answer key must be a PDF." };
+    try {
+      answerKeyUrl = (await saveContentFile(answerKeyFile)).url;
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Answer key upload failed." };
+    }
+  }
+
   if (!title) return { error: "The lesson needs a title." };
 
   // Scheduling: when the lesson opens (Eastern time). Blank = right away.
@@ -145,7 +158,8 @@ export async function saveLesson(
 
   const db = await getDb();
   const values = {
-    title, contentHtml, sortOrder, published, videoUrl, worksheetUrl, availableAt,
+    title, contentHtml, sortOrder, published, videoUrl, worksheetUrl,
+    answerKeyUrl, availableAt,
   };
   let lessonId = id;
   if (id) {

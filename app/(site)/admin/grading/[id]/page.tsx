@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
-import { assignments, courses, getDb, submissions, users } from "@/lib/db";
+import { assignments, courses, getDb, lessons, submissions, users } from "@/lib/db";
 import PageHero from "@/components/PageHero";
 import StatusBadge from "@/components/StatusBadge";
 import GradeForm from "./GradeForm";
@@ -31,6 +31,11 @@ export default async function GradeSubmissionPage({
   const course = await db.query.courses.findFirst({
     where: eq(courses.id, assignment.courseId),
   });
+  const lesson = assignment.lessonId
+    ? await db.query.lessons.findFirst({
+        where: eq(lessons.id, assignment.lessonId),
+      })
+    : undefined;
   // The student's earlier attempts, for context.
   const history = await db.query.submissions.findMany({
     where: and(
@@ -115,6 +120,15 @@ export default async function GradeSubmissionPage({
                 {assignment.dueAt &&
                   ` · was due ${formatEastern(assignment.dueAt)}`}
               </p>
+              {lesson?.answerKeyUrl && (
+                <a
+                  href={lesson.answerKeyUrl}
+                  target="_blank"
+                  className="mt-2 inline-block rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  📄 Open Answer Key
+                </a>
+              )}
               {submission.aiScore !== null && submission.status === "submitted" && (
                 <div className="mt-4 rounded-lg bg-brand-500/5 p-3 ring-1 ring-brand-500/20">
                   <p className="text-xs font-semibold uppercase tracking-wider text-brand-700">

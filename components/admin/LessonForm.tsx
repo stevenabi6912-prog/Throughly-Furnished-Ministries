@@ -112,6 +112,39 @@ export default function LessonForm({
           />
         </label>
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm font-medium text-slate-700">
+          Answer key PDF{" "}
+          <span className="font-normal text-slate-500">
+            (teacher only — Claude grades against it; students never see it)
+          </span>
+          <input
+            name="answerKeyFile"
+            type="file"
+            accept=".pdf,application/pdf"
+            className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+          />
+          {lesson?.answerKeyUrl && (
+            <a
+              href={lesson.answerKeyUrl}
+              target="_blank"
+              className="mt-1 inline-block text-xs font-semibold text-brand-700 hover:underline"
+            >
+              View current answer key →
+            </a>
+          )}
+        </label>
+        <label className="block text-sm font-medium text-slate-700">
+          …or answer key link
+          <input
+            name="answerKeyUrl"
+            type="url"
+            placeholder="https://…/answer-key.pdf"
+            defaultValue={lesson?.answerKeyUrl ?? ""}
+            className={inputClass}
+          />
+        </label>
+      </div>
       <label className="block text-sm font-medium text-slate-700">
         Extra lesson content{" "}
         <span className="font-normal text-slate-500">(optional — HTML is fine)</span>

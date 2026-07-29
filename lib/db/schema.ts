@@ -85,6 +85,10 @@ export const lessons = pgTable(
     // worksheet, shown above the content and the homework turn-in.
     videoUrl: text("video_url"),
     worksheetUrl: text("worksheet_url"),
+    // The teacher's answer sheet for this lesson's worksheet. Only shown
+    // to admins and given to the AI grader as reference — never rendered
+    // anywhere a student can see.
+    answerKeyUrl: text("answer_key_url"),
     // When the lesson unlocks for students (null = available right away).
     // TFM's rhythm: lessons open Sunday 3 PM Eastern.
     availableAt: timestamp("available_at"),

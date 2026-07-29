@@ -1,0 +1,1 @@
+ALTER TABLE "lessons" ADD COLUMN "answer_key_url" text;
