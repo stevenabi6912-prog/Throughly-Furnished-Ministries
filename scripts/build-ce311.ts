@@ -80,18 +80,6 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
 <p><em>Attendance in the Sunday afternoon class is required — recorded video is a help for review, not a replacement. Check this site weekly for assignments and updates.</em></p>`,
   },
   {
-    slug: "the-apostle-paul",
-    title: "The Apostle Paul",
-    sortOrder: 10,
-    opens: "2026-09-13T15:00",
-    worksheetPdf: "Worksheet_Ch01_TheApostlePaul.pdf",
-    textbookPdf: "CE311_Ch01_TheApostlePaul.pdf",
-    textbookLabel: "Chapter 1: The Apostle Paul",
-    homeworkPoints: 100,
-    extraHtml:
-      "<p>Before we open the epistles themselves, we meet the man God chose to write them. Read the chapter, watch the class, and complete the worksheet alongside the Romans lesson this first week.</p>",
-  },
-  {
     slug: "romans",
     title: "Lesson 1: Romans",
     sortOrder: 20,
@@ -166,7 +154,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     homeworkPoints: 300,
     homeworkTitle: "Midterm Exam",
     extraHtml:
-      "<p>The Midterm is taken <strong>in class on Sunday, November 1</strong>. It covers Lessons 1–6 (The Apostle Paul through Philippians) and every memory verse assigned so far. If your teacher has you turn in or photograph your exam, upload it here.</p>",
+      "<p>The Midterm is taken <strong>in class on Sunday, November 1</strong>. It covers Lessons 1–6 (Romans through Philippians) and every memory verse assigned so far. If your teacher has you turn in or photograph your exam, upload it here.</p>",
   },
   {
     slug: "colossians",
