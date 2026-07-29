@@ -9,7 +9,6 @@ import {
   enrollments,
   getDb,
   lessonProgress,
-  lessons,
   submissions,
   type Course,
   type User,
@@ -46,36 +45,6 @@ async function mayWorkIn(
   return true;
 }
 
-export async function toggleLessonComplete(lessonId: number): Promise<void> {
-  const user = await requireUser();
-  const db = await getDb();
-  const lesson = await db.query.lessons.findFirst({
-    where: eq(lessons.id, lessonId),
-  });
-  if (!lesson) return;
-  const course = await db.query.courses.findFirst({
-    where: eq(courses.id, lesson.courseId),
-  });
-  if (!course || !(await mayWorkIn(user, course))) return;
-
-  const existing = await db.query.lessonProgress.findFirst({
-    where: and(
-      eq(lessonProgress.userId, user.id),
-      eq(lessonProgress.lessonId, lessonId)
-    ),
-  });
-  if (existing) {
-    await db.delete(lessonProgress).where(eq(lessonProgress.id, existing.id));
-  } else {
-    await db
-      .insert(lessonProgress)
-      .values({ userId: user.id, lessonId })
-      .onConflictDoNothing();
-  }
-  revalidatePath("/courses", "layout");
-  revalidatePath("/dashboard");
-}
-
 export async function submitAssignment(
   _prev: FormState,
   formData: FormData
@@ -88,7 +57,7 @@ export async function submitAssignment(
 
   if (!Number.isInteger(assignmentId)) return { error: "Something went wrong." };
   if (!text && !hasFile)
-    return { error: "Write your answer or attach a file before submitting." };
+    return { error: "Attach your completed worksheet before turning it in." };
 
   const db = await getDb();
   const assignment = await db.query.assignments.findFirst({
@@ -137,6 +106,13 @@ export async function submitAssignment(
       fileName,
     })
     .returning();
+  // Turning in the homework IS completing the lesson — check it off.
+  if (assignment.lessonId) {
+    await db
+      .insert(lessonProgress)
+      .values({ userId: user.id, lessonId: assignment.lessonId })
+      .onConflictDoNothing();
+  }
   // Claude drafts a suggested grade in the background; a mentor reviews it
   // in the grading queue before the student sees anything.
   after(() => aiGradeSubmission(created.id));

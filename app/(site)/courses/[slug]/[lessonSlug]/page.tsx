@@ -9,10 +9,8 @@ import {
   getCourseBySlug,
   getCourseContent,
 } from "@/lib/data";
-import { toggleLessonComplete } from "@/lib/actions/student";
 import { youTubeEmbedUrl } from "@/lib/youtube";
 import { formatEastern } from "@/lib/time";
-import SubmitButton from "@/components/SubmitButton";
 import StatusBadge from "@/components/StatusBadge";
 import SubmissionForm from "@/app/(site)/assignments/[id]/SubmissionForm";
 
@@ -225,19 +223,20 @@ export default async function LessonPage({
             );
           })}
 
-          {/* Footer: complete + prev/next */}
+          {/* Footer: completion state + prev/next. Lessons complete
+              automatically when the homework is turned in. */}
           <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-8">
-            <form action={toggleLessonComplete.bind(null, lesson.id)}>
-              <SubmitButton
-                className={
-                  isDone
-                    ? "rounded-lg border border-green-600 px-5 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-50 disabled:opacity-60"
-                    : "rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
-                }
+            {lessonAssignments.length > 0 ? (
+              <p
+                className={`text-sm font-semibold ${isDone ? "text-green-700" : "text-slate-500"}`}
               >
-                {isDone ? "✓ Completed — mark incomplete" : "Mark Lesson Complete"}
-              </SubmitButton>
-            </form>
+                {isDone
+                  ? "✓ Lesson complete — homework turned in"
+                  : "This lesson is complete once you turn in the homework above."}
+              </p>
+            ) : (
+              <span />
+            )}
             <div className="flex gap-3">
               {prev && (
                 <Link

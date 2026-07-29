@@ -41,9 +41,16 @@ export default async function DashboardPage() {
     }) ?? [];
   const pastDue = openAssignments.filter((a) => a.dueAt && a.dueAt < now);
   const upcoming = openAssignments.filter((a) => !a.dueAt || a.dueAt >= now);
+  // Progress counts lessons that have homework (completion = turned in);
+  // info-only lessons like the syllabus overview don't count against it.
+  const completableLessons =
+    content?.lessons.filter((l) =>
+      content.assignments.some((a) => a.lessonId === l.id)
+    ) ?? [];
+  const doneCompletable = completableLessons.filter((l) => done.has(l.id));
   const pct =
-    content && content.lessons.length > 0
-      ? Math.round((done.size / content.lessons.length) * 100)
+    completableLessons.length > 0
+      ? Math.round((doneCompletable.length / completableLessons.length) * 100)
       : 0;
 
   const recentGrades = [...latestByAssignment.values()]
@@ -153,7 +160,9 @@ export default async function DashboardPage() {
                     />
                   </div>
                   <p className="mt-1.5 text-xs text-slate-400">
-                    {done.size} of {content.lessons.length} lessons complete
+                    {doneCompletable.length} of {completableLessons.length}{" "}
+                    lessons complete (a lesson counts as complete when its
+                    homework is turned in)
                   </p>
                 </div>
 

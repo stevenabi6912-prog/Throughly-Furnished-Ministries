@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { submitAssignment } from "@/lib/actions/student";
 import SubmitButton from "@/components/SubmitButton";
 
+// Turn-in form: the completed worksheet (or exam) is the answer, so this
+// is deliberately just a file upload — no confusing text box.
 export default function SubmissionForm({
   assignmentId,
 }: {
@@ -15,20 +17,17 @@ export default function SubmissionForm({
     <form action={action} className="mt-4 space-y-4">
       <input type="hidden" name="assignmentId" value={assignmentId} />
       <label className="block text-sm font-medium text-slate-700">
-        Written answer
-        <textarea
-          name="text"
-          rows={8}
-          className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-brand-500"
-          placeholder="Type your work here…"
-        />
-      </label>
-      <label className="block text-sm font-medium text-slate-700">
-        Attach a file <span className="font-normal text-slate-500">(optional — PDF, Word, photos, audio… up to 25 MB)</span>
+        Upload your completed worksheet
+        <span className="block text-xs font-normal text-slate-500">
+          PDF is best (type into the worksheet, save, upload). Photos or
+          Word files work too — up to 25 MB.
+        </span>
         <input
           name="file"
           type="file"
-          className="mt-1 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+          required
+          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.heic,.webp"
+          className="mt-2 block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-600"
         />
       </label>
       {state?.error && (
@@ -36,7 +35,7 @@ export default function SubmissionForm({
           {state.error}
         </p>
       )}
-      <SubmitButton>Turn In Assignment</SubmitButton>
+      <SubmitButton>Turn In Homework</SubmitButton>
     </form>
   );
 }
