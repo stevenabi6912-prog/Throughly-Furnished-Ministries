@@ -19,7 +19,7 @@ import { easternToUtc, saturdayDeadlineAfter } from "../lib/time";
 const SCRATCH =
   "/private/tmp/claude-501/-Users-stevenwireman-Desktop-TFM-Website/4c654a97-576c-45d1-bf2c-90dfddf081bc/scratchpad";
 const WS = `${SCRATCH}/wsgen`;
-const TB = `${SCRATCH}/textbook`;
+const TB = `${SCRATCH}/textbook-v2`;
 
 function loadBlobToken(): string {
   if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
@@ -62,8 +62,8 @@ const PLAN: LessonPlan[] = [
     title: "Course Overview & Syllabus",
     sortOrder: 0,
     opens: null,
-    textbookPdf: "Introduction_TheChurchEpistles_Final_7x10_4.pdf",
-    textbookLabel: "Introduction: The Church Epistles",
+    textbookPdf: "CE311_Introduction.pdf",
+    textbookLabel: "Introduction & Table of Contents",
     extraHtml: `
 <p><strong>Trimester 1 · September – December 2026 · Sundays after the afternoon service</strong></p>
 <p>This trimester focuses on the <strong>Church Epistles</strong> — Romans, 1 &amp; 2 Corinthians, Galatians, Ephesians, Philippians, Colossians, and 1 &amp; 2 Thessalonians. These letters were written and delivered first to specific local churches, and they contain the majority of the doctrine, practice, correction, admonition, and exhortation God has given to the New Testament Church. Each lesson gives a cursory examination of one epistle with focused attention on one or two of its major doctrinal themes.</p>
@@ -85,7 +85,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 10,
     opens: "2026-09-13T15:00",
     worksheetPdf: "Worksheet_Ch01_TheApostlePaul.pdf",
-    textbookPdf: "Chapter1_TheApostlePaul_Final_7x10.pdf",
+    textbookPdf: "CE311_Ch01_TheApostlePaul.pdf",
     textbookLabel: "Chapter 1: The Apostle Paul",
     homeworkPoints: 100,
     extraHtml:
@@ -97,7 +97,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 20,
     opens: "2026-09-13T15:00",
     worksheetPdf: "Worksheet_Ch02_Romans.pdf",
-    textbookPdf: "Chapter2_Romans_Expanded_2.pdf",
+    textbookPdf: "CE311_Ch02_Romans.pdf",
     textbookLabel: "Chapter 2: The Epistle to the Romans",
     memoryVerse: MV.romans,
     homeworkPoints: 100,
@@ -108,7 +108,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 30,
     opens: "2026-09-20T15:00",
     worksheetPdf: "Worksheet_Ch03_1Corinthians.pdf",
-    textbookPdf: "Chapter3_1Corinthians_Expanded-2.pdf",
+    textbookPdf: "CE311_Ch03_1Corinthians.pdf",
     textbookLabel: "Chapter 3: 1 Corinthians",
     memoryVerse: MV.cor1,
     homeworkPoints: 100,
@@ -119,7 +119,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 40,
     opens: "2026-09-27T15:00",
     worksheetPdf: "Worksheet_Ch04_2Corinthians.pdf",
-    textbookPdf: "Correct format Chapter4_2Corinthians_Expanded_2.pdf",
+    textbookPdf: "CE311_Ch04_2Corinthians.pdf",
     textbookLabel: "Chapter 4: 2 Corinthians",
     memoryVerse: MV.cor2,
     homeworkPoints: 100,
@@ -130,7 +130,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 50,
     opens: "2026-10-04T15:00",
     worksheetPdf: "Worksheet_Ch05_Galatians.pdf",
-    textbookPdf: "Chapter5_Galatians_Expanded_4.pdf",
+    textbookPdf: "CE311_Ch05_Galatians.pdf",
     textbookLabel: "Chapter 5: Galatians",
     memoryVerse: MV.gal,
     homeworkPoints: 100,
@@ -142,7 +142,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 60,
     opens: "2026-10-18T15:00",
     worksheetPdf: "Worksheet_Ch06_Ephesians.pdf",
-    textbookPdf: "Chapter6_Ephesians_Expanded.pdf",
+    textbookPdf: "CE311_Ch06_Ephesians.pdf",
     textbookLabel: "Chapter 6: Ephesians",
     memoryVerse: MV.eph,
     homeworkPoints: 100,
@@ -153,7 +153,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 70,
     opens: "2026-10-25T15:00",
     worksheetPdf: "Worksheet_Ch07_Philippians.pdf",
-    textbookPdf: "Chapter7_Philippians_Expanded_3.pdf",
+    textbookPdf: "CE311_Ch07_Philippians.pdf",
     textbookLabel: "Chapter 7: Philippians",
     memoryVerse: MV.phil,
     homeworkPoints: 100,
@@ -174,7 +174,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 90,
     opens: "2026-11-08T15:00",
     worksheetPdf: "Worksheet_Ch08_Colossians.pdf",
-    textbookPdf: "Chapter8_Colossians_Expanded_1.pdf",
+    textbookPdf: "CE311_Ch08_Colossians.pdf",
     textbookLabel: "Chapter 8: Colossians",
     memoryVerse: MV.col,
     homeworkPoints: 100,
@@ -185,7 +185,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 100,
     opens: "2026-11-15T15:00",
     worksheetPdf: "Worksheet_Ch09_1Thessalonians.pdf",
-    textbookPdf: "Chapter9_1Thessalonians_Final_7x10_2.pdf",
+    textbookPdf: "CE311_Ch09_1Thessalonians.pdf",
     textbookLabel: "Chapter 9: 1 Thessalonians",
     memoryVerse: MV.th1,
     homeworkPoints: 100,
@@ -198,7 +198,7 @@ ${Object.values(MV).map((v) => `<li>${v}</li>`).join("\n")}
     sortOrder: 110,
     opens: "2026-12-06T15:00",
     worksheetPdf: "Worksheet_Ch10_2Thessalonians.pdf",
-    textbookPdf: "Chapter10_2Thessalonians_Expanded.pdf",
+    textbookPdf: "CE311_Ch10_2Thessalonians.pdf",
     textbookLabel: "Chapter 10: 2 Thessalonians",
     memoryVerse: MV.th2,
     homeworkPoints: 100,
@@ -270,6 +270,15 @@ async function main() {
       parts.push(
         `<p>📖 <strong>Read before class:</strong> <a href="${textbookUrl}" target="_blank">${p.textbookLabel}</a> (PDF)</p>`
       );
+    if (p.slug === "overview") {
+      const fullBookUrl = await toBlob(
+        path.join(TB, "CE311_TheChurchEpistles_FullBook.pdf"),
+        "content/textbook"
+      );
+      parts.push(
+        `<p>📚 <strong>The complete textbook:</strong> <a href="${fullBookUrl}" target="_blank">The Church Epistles — full book</a> (PDF). Each lesson also links just its own chapter.</p>`
+      );
+    }
     if (p.worksheetPdf)
       parts.push(
         `<p>Fill in the worksheet below as you read and as we work through the lesson in class, then turn it in — it is due by Saturday midnight before the next class. You can type directly into the PDF, save it, and upload it here.</p>`
