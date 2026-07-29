@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/session";
 import { assignments, courses, getDb, submissions } from "@/lib/db";
-import { getEnrollment } from "@/lib/data";
+import { canViewCourse } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import SubmissionForm from "./SubmissionForm";
 
@@ -26,9 +26,7 @@ export default async function AssignmentPage({
   const course = await db.query.courses.findFirst({
     where: eq(courses.id, assignment.courseId),
   });
-  if (!course) notFound();
-  const enrollment = await getEnrollment(user.id, course.id);
-  if (!enrollment && user.role !== "admin") notFound();
+  if (!course || !(await canViewCourse(user, course))) notFound();
 
   const mySubmissions = await db.query.submissions.findMany({
     where: and(

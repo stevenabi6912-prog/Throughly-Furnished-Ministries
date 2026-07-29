@@ -4,38 +4,39 @@ import { requireUser } from "@/lib/auth/session";
 import {
   getCompletedLessonIds,
   getCourseContent,
-  getEnrolledCourses,
+  getCurrentCourse,
   getLatestSubmissions,
+  TRACK_INFO,
 } from "@/lib/data";
 import StatusBadge from "@/components/StatusBadge";
 import PageHero from "@/components/PageHero";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
+// TFM runs one course at a time and every active student is automatically
+// in it — so the dashboard IS the current course, plus recent grades.
 export default async function DashboardPage() {
   const user = await requireUser();
-  const enrolled = await getEnrolledCourses(user.id);
+  const course = await getCurrentCourse();
   const latestByAssignment = await getLatestSubmissions(user.id);
 
-  // Per-course lesson progress + open assignments.
-  const courseCards = await Promise.all(
-    enrolled.map(async (course) => {
-      const { lessons, assignments } = await getCourseContent(course.id);
-      const done = await getCompletedLessonIds(
-        user.id,
-        lessons.map((l) => l.id)
-      );
-      const open = assignments.filter((a) => {
-        const sub = latestByAssignment.get(a.id);
-        return !sub || sub.status === "returned";
-      });
-      return { course, lessonCount: lessons.length, doneCount: done.size, open };
-    })
-  );
+  const content = course ? await getCourseContent(course.id) : null;
+  const done = content
+    ? await getCompletedLessonIds(user.id, content.lessons.map((l) => l.id))
+    : new Set<number>();
+  const now = new Date();
+  const openAssignments =
+    content?.assignments.filter((a) => {
+      const sub = latestByAssignment.get(a.id);
+      return !sub || sub.status === "returned";
+    }) ?? [];
+  const pastDue = openAssignments.filter((a) => a.dueAt && a.dueAt < now);
+  const upcoming = openAssignments.filter((a) => !a.dueAt || a.dueAt >= now);
+  const pct =
+    content && content.lessons.length > 0
+      ? Math.round((done.size / content.lessons.length) * 100)
+      : 0;
 
-  const openAssignments = courseCards.flatMap(({ course, open }) =>
-    open.map((assignment) => ({ course, assignment }))
-  );
   const recentGrades = [...latestByAssignment.values()]
     .filter((s) => s.gradedAt !== null)
     .sort((a, b) => b.gradedAt!.getTime() - a.gradedAt!.getTime())
@@ -46,65 +47,176 @@ export default async function DashboardPage() {
       <PageHero
         eyebrow="Student Dashboard"
         title={`Welcome, ${user.name.split(" ")[0]}`}
-        intro="Pick up where you left off."
+        intro={
+          course
+            ? `The course in session: ${course.title}`
+            : "No course is in session right now."
+        }
       />
 
       <section className="bg-slate-50 px-4 py-12 sm:py-16">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-3">
-          {/* Courses + progress */}
-          <div className="lg:col-span-2">
-            <h2 className="text-2xl">My Courses</h2>
-            {courseCards.length === 0 ? (
-              <div className="mt-6 rounded-2xl bg-white p-8 text-center shadow-sm">
-                <p className="text-slate-600">
-                  You aren&rsquo;t enrolled in any courses yet.
-                </p>
-                <Link
-                  href="/courses"
-                  className="mt-4 inline-block rounded-lg bg-brand-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-brand-600"
-                >
-                  Browse Courses
-                </Link>
+        <div className="mx-auto max-w-6xl">
+          {/* What needs turning in — first thing on the page */}
+          {openAssignments.length > 0 && (
+            <div className="mb-10 overflow-hidden rounded-2xl bg-white shadow-sm">
+              <div
+                className={`px-6 py-4 ${pastDue.length > 0 ? "bg-red-600" : "bg-brand-500"} text-white`}
+              >
+                <h2 className="text-xl">
+                  {pastDue.length > 0
+                    ? `You're behind on ${pastDue.length} assignment${pastDue.length === 1 ? "" : "s"}`
+                    : `Homework to turn in (${openAssignments.length})`}
+                </h2>
               </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                {courseCards.map(({ course, lessonCount, doneCount, open }) => {
-                  const pct =
-                    lessonCount === 0
-                      ? 0
-                      : Math.round((doneCount / lessonCount) * 100);
+              <ul className="divide-y divide-slate-100">
+                {[...pastDue, ...upcoming].map((assignment) => {
+                  const isLate = Boolean(assignment.dueAt && assignment.dueAt < now);
+                  const returned =
+                    latestByAssignment.get(assignment.id)?.status === "returned";
                   return (
-                    <Link
-                      key={course.id}
-                      href={`/courses/${course.slug}`}
-                      className="hover-lift block rounded-2xl bg-white p-6 shadow-sm"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h3 className="text-lg font-bold text-slate-900">
-                          {course.title}
-                        </h3>
-                        <span className="text-sm text-slate-500">
-                          {doneCount}/{lessonCount} lessons
-                          {open.length > 0 &&
-                            ` · ${open.length} assignment${open.length === 1 ? "" : "s"} to do`}
-                        </span>
-                      </div>
-                      <div
-                        className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"
-                        role="progressbar"
-                        aria-valuenow={pct}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-label={`${course.title} progress`}
+                    <li key={assignment.id}>
+                      <Link
+                        href={`/assignments/${assignment.id}`}
+                        className="flex flex-wrap items-center justify-between gap-2 px-6 py-3.5 hover:bg-slate-50"
                       >
-                        <div
-                          className="h-full rounded-full bg-brand-500 transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </Link>
+                        <span className="font-semibold text-slate-900">
+                          {assignment.title}
+                          {returned && (
+                            <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                              Returned — fix &amp; resubmit
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className={`text-sm font-semibold ${
+                            isLate ? "text-red-600" : "text-slate-500"
+                          }`}
+                        >
+                          {assignment.dueAt
+                            ? `${isLate ? "Past due — " : "Due "}${assignment.dueAt.toLocaleDateString()}`
+                            : "Turn in →"}
+                        </span>
+                      </Link>
+                    </li>
                   );
                 })}
+              </ul>
+            </div>
+          )}
+
+          <div className="grid gap-10 lg:grid-cols-3">
+          {/* The current course */}
+          <div className="lg:col-span-2">
+            {!course || !content ? (
+              <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+                <p className="text-slate-600">
+                  There&rsquo;s no course in session at the moment — check
+                  back soon, or look over your{" "}
+                  <Link href="/grades" className="font-semibold text-brand-700 hover:underline">
+                    past grades
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                <div className="bg-slate-900 px-6 py-5 text-white">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-brand-400">
+                    {TRACK_INFO[course.track].title} · Current Course
+                  </p>
+                  <h2 className="mt-1 text-2xl">{course.title}</h2>
+                  {course.description && (
+                    <p className="mt-2 text-sm text-slate-300">
+                      {course.description}
+                    </p>
+                  )}
+                  <div
+                    className="mt-4 h-2 overflow-hidden rounded-full bg-white/15"
+                    role="progressbar"
+                    aria-valuenow={pct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Lesson progress"
+                  >
+                    <div
+                      className="h-full rounded-full bg-brand-400 transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    {done.size} of {content.lessons.length} lessons complete
+                  </p>
+                </div>
+
+                <div className="p-6">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                    Lessons
+                  </h3>
+                  {content.lessons.length === 0 ? (
+                    <p className="mt-3 text-sm text-slate-600">
+                      Lessons are being prepared.
+                    </p>
+                  ) : (
+                    <ol className="mt-3 space-y-2">
+                      {content.lessons.map((lesson, i) => (
+                        <li key={lesson.id}>
+                          <Link
+                            href={`/courses/${course.slug}/${lesson.slug}`}
+                            className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                done.has(lesson.id)
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {done.has(lesson.id) ? "✓" : i + 1}
+                            </span>
+                            <span className="font-medium text-slate-900">
+                              {lesson.title}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  {content.assignments.length > 0 && (
+                    <>
+                      <h3 className="mt-8 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                        Assignments
+                      </h3>
+                      <ul className="mt-3 space-y-2">
+                        {content.assignments.map((assignment) => {
+                          const sub = latestByAssignment.get(assignment.id);
+                          return (
+                            <li key={assignment.id}>
+                              <Link
+                                href={`/assignments/${assignment.id}`}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-slate-50"
+                              >
+                                <span className="font-medium text-slate-900">
+                                  {assignment.title}
+                                </span>
+                                <span className="flex items-center gap-2">
+                                  {sub?.status === "approved" &&
+                                    sub.score !== null && (
+                                      <span className="text-sm font-bold">
+                                        {sub.score}/{assignment.points}
+                                      </span>
+                                    )}
+                                  <StatusBadge status={sub?.status ?? "notsubmitted"} />
+                                </span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -119,7 +231,7 @@ export default async function DashboardPage() {
                 </p>
               ) : (
                 <ul className="mt-4 space-y-3">
-                  {openAssignments.slice(0, 6).map(({ course, assignment }) => (
+                  {openAssignments.slice(0, 6).map((assignment) => (
                     <li key={assignment.id}>
                       <Link
                         href={`/assignments/${assignment.id}`}
@@ -128,11 +240,11 @@ export default async function DashboardPage() {
                         <p className="text-sm font-semibold text-slate-900">
                           {assignment.title}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {course.title}
-                          {assignment.dueAt &&
-                            ` · due ${assignment.dueAt.toLocaleDateString()}`}
-                        </p>
+                        {assignment.dueAt && (
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Due {assignment.dueAt.toLocaleDateString()}
+                          </p>
+                        )}
                       </Link>
                     </li>
                   ))}
@@ -175,9 +287,10 @@ export default async function DashboardPage() {
                 href="/grades"
                 className="mt-4 inline-block text-sm font-semibold text-brand-700 hover:underline"
               >
-                See all grades →
+                All my grades →
               </Link>
             </div>
+          </div>
           </div>
         </div>
       </section>

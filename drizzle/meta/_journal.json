@@ -8,6 +8,20 @@
       "when": 1785259786752,
       "tag": "0000_low_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785285755239,
+      "tag": "0001_futuristic_bug",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785285977234,
+      "tag": "0002_colossal_kylun",
+      "breakpoints": true
     }
   ]
 }

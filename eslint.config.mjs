@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The old WordPress site archive (not our code).
+    "migration-data/**",
   ]),
 ]);
 

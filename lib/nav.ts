@@ -10,11 +10,11 @@ export const programs: NavLink[] = [
   { label: "Ministry Participation", href: "/ministry-participation" },
 ];
 
-// Shown to signed-in students.
+// Shown to signed-in students. One course runs at a time, and the
+// dashboard IS that course — so no catalog link.
 export const studentLinks: NavLink[] = [
   { label: "Dashboard", href: "/dashboard" },
-  { label: "My Courses", href: "/courses" },
-  { label: "Grades", href: "/grades" },
+  { label: "Report Card", href: "/grades" },
 ];
 
 export const footerLinks: NavLink[] = [

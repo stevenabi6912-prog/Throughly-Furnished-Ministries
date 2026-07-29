@@ -34,18 +34,28 @@ To start over locally: delete the `.data/` folder and re-run `npm run db:seed`.
 
 ## How the site works
 
-Three kinds of people:
+TFM runs **one course at a time**. An admin picks the course in session
+(`/admin/courses` → "Make Current") and every active student is
+automatically in it — there is no enrollment step.
 
 - **Visitors** see the public pages: home, the three program tracks
   (Biblical Studies, Practical Skills, Ministry Participation), privacy,
   terms, and can register.
-- **Students** enroll in published courses, read lessons and mark them
-  complete, submit assignments (written answers and/or file uploads), and
-  see their grades and mentor feedback at `/grades`.
-- **Admins** get `/admin`: create/edit courses, lessons, and assignments;
-  grade the submission queue (approve with a score + feedback, or return
-  for revision); manage students (enrollments, roles, deactivation) and
-  view any student's full gradebook.
+- **Students** land on a dashboard that leads with any homework they
+  haven't turned in (past-due first, in red — the list clears itself when
+  the session moves to a new course). Below that: the current course with
+  its lessons and their progress. Each lesson follows the standard TFM
+  shape: title → YouTube teaching video → fillable PDF worksheet →
+  homework turn-in, right on the lesson page. `/grades` is their **report
+  card**: Biblical Studies courses get letter grades and grade points,
+  Practical Skills show Complete/Incomplete, Ministry Participation shows
+  Pass — 2 credits per completion, with the overall BSC GPA up top (same
+  scale as the old paper report cards).
+- **Admins** get `/admin`: course/lesson/assignment editing (lessons have
+  fields for the video link and worksheet PDF upload, plus a "homework
+  turn-in" toggle); the grading queue; and student management — bulk
+  archive/delete, per-student report card, and "mark course complete,"
+  which is what awards credits and Complete/Pass entries.
 
 The **first account ever registered becomes the admin** (after that,
 everyone registers as a student — admins promote people at

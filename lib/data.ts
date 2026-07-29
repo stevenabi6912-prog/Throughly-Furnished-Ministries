@@ -43,6 +43,29 @@ export const TRACK_INFO: Record<
   },
 };
 
+/** The one course currently in session (TFM runs one at a time). */
+export async function getCurrentCourse(): Promise<Course | null> {
+  const db = await getDb();
+  return (
+    (await db.query.courses.findFirst({ where: eq(courses.current, true) })) ??
+    null
+  );
+}
+
+/**
+ * Whether a user may open a course: admins always; students when it's the
+ * course in session (every active student is automatically in it) or one
+ * they participated in before.
+ */
+export async function canViewCourse(
+  user: { id: number; role: string },
+  course: Course
+): Promise<boolean> {
+  if (user.role === "admin") return true;
+  if (course.current && course.published) return true;
+  return Boolean(await getEnrollment(user.id, course.id));
+}
+
 export async function getPublishedCourses(track?: string): Promise<Course[]> {
   const db = await getDb();
   return db.query.courses.findMany({
@@ -61,18 +84,25 @@ export async function getCourseBySlug(slug: string) {
   return db.query.courses.findFirst({ where: eq(courses.slug, slug) });
 }
 
-export async function getCourseContent(courseId: number) {
+export async function getCourseContent(
+  courseId: number,
+  { includeDrafts = false }: { includeDrafts?: boolean } = {}
+) {
   const db = await getDb();
   const [courseLessons, courseAssignments] = await Promise.all([
     db.query.lessons.findMany({
-      where: and(eq(lessons.courseId, courseId), eq(lessons.published, true)),
+      where: includeDrafts
+        ? eq(lessons.courseId, courseId)
+        : and(eq(lessons.courseId, courseId), eq(lessons.published, true)),
       orderBy: [asc(lessons.sortOrder), asc(lessons.id)],
     }),
     db.query.assignments.findMany({
-      where: and(
-        eq(assignments.courseId, courseId),
-        eq(assignments.published, true)
-      ),
+      where: includeDrafts
+        ? eq(assignments.courseId, courseId)
+        : and(
+            eq(assignments.courseId, courseId),
+            eq(assignments.published, true)
+          ),
       orderBy: [asc(assignments.sortOrder), asc(assignments.id)],
     }),
   ]);
@@ -146,15 +176,26 @@ export async function getLatestSubmissions(
   return latest;
 }
 
-/** Everything a student's grades page needs, grouped by course. */
+/**
+ * A student's full report card, grouped by course — every course they
+ * have participated in (current or past), with earned/possible points.
+ */
 export async function getGradebook(userId: number) {
   const enrolled = await getEnrolledCourses(userId);
   const result: {
     course: Course;
+    completedAt: Date | null;
     rows: { assignment: Assignment; submission: Submission | null }[];
     earned: number;
     possible: number;
   }[] = [];
+  const db = await getDb();
+  const enrollmentRows = await db.query.enrollments.findMany({
+    where: eq(enrollments.userId, userId),
+  });
+  const completedByCourse = new Map(
+    enrollmentRows.map((e) => [e.courseId, e.completedAt])
+  );
   for (const course of enrolled) {
     const { assignments: courseAssignments } = await getCourseContent(
       course.id
@@ -175,7 +216,13 @@ export async function getGradebook(userId: number) {
         possible += assignment.points;
       }
     }
-    result.push({ course, rows, earned, possible });
+    result.push({
+      course,
+      completedAt: completedByCourse.get(course.id) ?? null,
+      rows,
+      earned,
+      possible,
+    });
   }
   return result;
 }

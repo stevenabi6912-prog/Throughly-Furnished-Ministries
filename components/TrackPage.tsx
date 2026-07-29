@@ -59,25 +59,25 @@ export default async function TrackPage({
               Courses for this program are being prepared — check back soon.
             </p>
           ) : (
+            // The curriculum, shown as information — students work in one
+            // course at a time from their dashboard.
             <div className="mt-10 grid gap-6 sm:grid-cols-2">
               {coursesInTrack.map((course) => (
-                <Link
-                  key={course.id}
-                  href={`/courses/${course.slug}`}
-                  className="hover-lift group rounded-2xl bg-white p-7 shadow-sm"
-                >
-                  <h3 className="text-lg font-bold text-slate-900 group-hover:text-brand-700">
+                <div key={course.id} className="rounded-2xl bg-white p-7 shadow-sm">
+                  <h3 className="text-lg font-bold text-slate-900">
                     {course.title}
+                    {course.current && (
+                      <span className="ml-2 rounded-full bg-brand-500/10 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
+                        In session now
+                      </span>
+                    )}
                   </h3>
                   {course.description && (
                     <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
                       {course.description}
                     </p>
                   )}
-                  <span className="mt-4 inline-block text-sm font-semibold text-brand-700">
-                    View course →
-                  </span>
-                </Link>
+                </div>
               ))}
             </div>
           )}
@@ -87,7 +87,7 @@ export default async function TrackPage({
                 href="/register"
                 className="hover-lift inline-block rounded-lg bg-brand-500 px-7 py-3.5 font-semibold text-white shadow transition-colors hover:bg-brand-600"
               >
-                Register to Enroll
+                Register as a Student
               </Link>
             </p>
           )}

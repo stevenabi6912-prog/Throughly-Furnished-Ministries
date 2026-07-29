@@ -1,0 +1,1 @@
+ALTER TABLE "courses" ADD COLUMN "current" boolean DEFAULT false NOT NULL;

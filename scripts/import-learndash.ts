@@ -309,6 +309,44 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Pull the standard TFM lesson pieces out of old WordPress content:
+ * the worksheet PDF ([embeddoc …] shortcode) and the teaching video
+ * (YouTube link, usually a Gutenberg embed block). Both move to their
+ * own fields; what they leave behind is stripped from the body.
+ */
+function extractLessonMedia(raw: string): {
+  videoUrl: string | null;
+  worksheetUrl: string | null;
+  rest: string;
+} {
+  let rest = raw;
+
+  const doc = rest.match(/\[embeddoc[^\]]*?url="([^"]+)"[^\]]*\]/i);
+  let worksheetUrl = doc?.[1] ?? null;
+  if (worksheetUrl) {
+    // Point at the WP Engine host that will outlive the DNS cut-over.
+    worksheetUrl = worksheetUrl.replace(
+      /^https?:\/\/(www\.)?tfmchelsea\.(org|com)/i,
+      OLD_SITE
+    );
+    rest = rest.replace(/\[embeddoc[^\]]*\]/gi, "");
+  }
+
+  const yt = rest.match(
+    /https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)[\w-]+|youtu\.be\/[\w-]+)/i
+  );
+  const videoUrl = yt?.[0] ?? null;
+  if (videoUrl) {
+    // Drop the embed figure the URL lived in (avoids showing it twice).
+    rest = rest.replace(/<figure[^>]*wp-block-embed[\s\S]*?<\/figure>/gi, (f) =>
+      /youtube\.com|youtu\.be/i.test(f) ? "" : f
+    );
+  }
+
+  return { videoUrl, worksheetUrl, rest };
+}
+
 function slugify(s: string): string {
   return (
     s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) ||
@@ -487,7 +525,8 @@ async function main() {
     const track =
       trackByOldCourse.get(Number(meta(wpId, "course_id") ?? 0)) ??
       guessTrack(title);
-    const bodyHtml = cleanHtml(String(p.post_content ?? ""));
+    const media = extractLessonMedia(String(p.post_content ?? ""));
+    const bodyHtml = cleanHtml(media.rest);
     const description =
       String(p.post_excerpt ?? "").trim() || stripHtml(bodyHtml).slice(0, 300);
     let slug = String(p.post_name ?? "") || slugify(title);
@@ -509,13 +548,15 @@ async function main() {
       .returning();
     courseIdByOldLesson.set(wpId, created.id);
     newCourses++;
-    if (stripHtml(bodyHtml).length > 0) {
+    if (stripHtml(bodyHtml).length > 0 || media.videoUrl || media.worksheetUrl) {
       await db.insert(lessons).values({
         wpPostId: -wpId, // marker: the Overview lesson generated from old lesson wpId
         courseId: created.id,
         slug: "overview",
         title: "Overview",
         contentHtml: bodyHtml,
+        videoUrl: media.videoUrl,
+        worksheetUrl: media.worksheetUrl,
         sortOrder: 0,
         published: p.post_status === "publish",
       });
@@ -563,6 +604,7 @@ async function main() {
     }
     const order = (perCourseOrder.get(courseId) ?? 0) + 10;
     perCourseOrder.set(courseId, order);
+    const media = extractLessonMedia(String(p.post_content ?? ""));
     const [created] = await db
       .insert(lessons)
       .values({
@@ -570,7 +612,9 @@ async function main() {
         courseId,
         slug,
         title,
-        contentHtml: cleanHtml(String(p.post_content ?? "")),
+        contentHtml: cleanHtml(media.rest),
+        videoUrl: media.videoUrl,
+        worksheetUrl: media.worksheetUrl,
         sortOrder: order,
         published: p.post_status === "publish",
       })

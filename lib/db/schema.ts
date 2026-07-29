@@ -60,6 +60,10 @@ export const courses = pgTable(
     coverImage: text("cover_image"),
     sortOrder: integer("sort_order").notNull().default(0),
     published: boolean("published").notNull().default(false),
+    // TFM runs one course at a time — the "current" course is the one all
+    // students see on their dashboard. At most one course has this set
+    // (enforced in the setCurrentCourse action).
+    current: boolean("current").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("courses_slug_idx").on(t.slug)]
@@ -77,6 +81,10 @@ export const lessons = pgTable(
     title: text("title").notNull(),
     // Sanitized HTML — imported lessons arrive as WordPress HTML.
     contentHtml: text("content_html").notNull().default(""),
+    // The standard TFM lesson shape: a teaching video and a fillable PDF
+    // worksheet, shown above the content and the homework turn-in.
+    videoUrl: text("video_url"),
+    worksheetUrl: text("worksheet_url"),
     sortOrder: integer("sort_order").notNull().default(0),
     published: boolean("published").notNull().default(true),
   },

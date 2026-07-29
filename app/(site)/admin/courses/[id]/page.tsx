@@ -74,7 +74,13 @@ export default async function AdminCourseDetailPage({
                       )}
                     </summary>
                     <div className="mt-4">
-                      <LessonForm courseId={course.id} lesson={lesson} />
+                      <LessonForm
+                        courseId={course.id}
+                        lesson={lesson}
+                        hasAssignment={courseAssignments.some(
+                          (a) => a.lessonId === lesson.id
+                        )}
+                      />
                       <form action={deleteLesson} className="mt-3">
                         <input type="hidden" name="id" value={lesson.id} />
                         <button

@@ -14,6 +14,8 @@ import {
 } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/session";
 import { cleanHtml } from "@/lib/html";
+import { saveContentFile } from "@/lib/uploads";
+import { youTubeEmbedUrl } from "@/lib/youtube";
 
 export type FormState = { error?: string; ok?: boolean } | undefined;
 
@@ -72,6 +74,26 @@ export async function saveCourse(
   redirect(`/admin/courses/${created.id}`);
 }
 
+/**
+ * Make one course "the course in session" (clears any other). Every active
+ * student automatically sees it on their dashboard. Passing currentId only
+ * (no courseId) ends the session with no new course.
+ */
+export async function setCurrentCourse(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const courseId = formData.get("courseId") ? Number(formData.get("courseId")) : null;
+  const db = await getDb();
+  await db.update(courses).set({ current: false }).where(eq(courses.current, true));
+  if (courseId) {
+    // The current course must be visible, so publish it too.
+    await db
+      .update(courses)
+      .set({ current: true, published: true })
+      .where(eq(courses.id, courseId));
+  }
+  revalidatePath("/", "layout");
+}
+
 export async function deleteCourse(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = Number(formData.get("id"));
@@ -94,24 +116,62 @@ export async function saveLesson(
   const contentHtml = cleanHtml(String(formData.get("contentHtml") ?? ""));
   const sortOrder = Number(formData.get("sortOrder") ?? 0) || 0;
   const published = formData.get("published") === "on";
+  const hasHomework = formData.get("hasHomework") === "on";
+
+  // The teaching video: any YouTube link is fine, we normalize at render.
+  const videoUrl = String(formData.get("videoUrl") ?? "").trim() || null;
+  if (videoUrl && !youTubeEmbedUrl(videoUrl))
+    return { error: "That doesn't look like a YouTube link." };
+
+  // The worksheet: either a freshly uploaded PDF or a pasted URL.
+  let worksheetUrl = String(formData.get("worksheetUrl") ?? "").trim() || null;
+  const worksheetFile = formData.get("worksheetFile");
+  if (worksheetFile instanceof File && worksheetFile.size > 0) {
+    if (!worksheetFile.name.toLowerCase().endsWith(".pdf"))
+      return { error: "The worksheet must be a PDF." };
+    try {
+      worksheetUrl = (await saveContentFile(worksheetFile)).url;
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Worksheet upload failed." };
+    }
+  }
 
   if (!title) return { error: "The lesson needs a title." };
   const db = await getDb();
+  const values = { title, contentHtml, sortOrder, published, videoUrl, worksheetUrl };
+  let lessonId = id;
   if (id) {
-    await db
-      .update(lessons)
-      .set({ title, contentHtml, sortOrder, published })
-      .where(eq(lessons.id, id));
+    await db.update(lessons).set(values).where(eq(lessons.id, id));
   } else {
     let slug = slugify(title) || "lesson";
     const clash = await db.query.lessons.findFirst({
       where: and(eq(lessons.courseId, courseId), eq(lessons.slug, slug)),
     });
     if (clash) slug = `${slug}-${Date.now() % 10000}`;
-    await db
+    const [created] = await db
       .insert(lessons)
-      .values({ courseId, slug, title, contentHtml, sortOrder, published });
+      .values({ courseId, slug, ...values })
+      .returning();
+    lessonId = created.id;
   }
+
+  // "This lesson has homework" — make sure a turn-in assignment exists.
+  if (hasHomework && lessonId) {
+    const existing = await db.query.assignments.findFirst({
+      where: eq(assignments.lessonId, lessonId),
+    });
+    if (!existing) {
+      await db.insert(assignments).values({
+        courseId,
+        lessonId,
+        title: `Homework — ${title}`,
+        instructionsHtml:
+          "<p>Complete the worksheet for this lesson and turn it in here.</p>",
+        points: 100,
+      });
+    }
+  }
+
   revalidatePath("/admin/courses", "layout");
   revalidatePath("/courses", "layout");
   return { ok: true };
@@ -226,6 +286,31 @@ export async function setStudentEnrollment(formData: FormData): Promise<void> {
       );
   }
   revalidatePath("/admin/students", "layout");
+}
+
+/**
+ * Mark a course complete (or not) on a student's record — this is what
+ * awards credits and the Complete/Pass entries on the report card.
+ */
+export async function setCourseCompletion(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const userId = Number(formData.get("userId"));
+  const courseId = Number(formData.get("courseId"));
+  const complete = formData.get("complete") === "1";
+  const db = await getDb();
+  await db
+    .insert(enrollments)
+    .values({
+      userId,
+      courseId,
+      completedAt: complete ? new Date() : null,
+    })
+    .onConflictDoUpdate({
+      target: [enrollments.userId, enrollments.courseId],
+      set: { completedAt: complete ? new Date() : null },
+    });
+  revalidatePath("/admin/students", "layout");
+  revalidatePath("/grades");
 }
 
 export async function setUserRole(formData: FormData): Promise<void> {

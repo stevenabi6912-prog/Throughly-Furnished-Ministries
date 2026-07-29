@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import {
   assignments,
@@ -11,25 +10,38 @@ import {
   lessonProgress,
   lessons,
   submissions,
+  type Course,
+  type User,
 } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { saveSubmissionFile } from "@/lib/uploads";
 
 export type FormState = { error?: string; ok?: boolean } | undefined;
 
-export async function enrollInCourse(courseId: number): Promise<void> {
-  const user = await requireUser();
+// TFM runs one course at a time and every active student is automatically
+// in it — there is no enroll step. A student may work in the course in
+// session, or revisit one they participated in before. Working in the
+// current course quietly records their participation (the enrollments
+// table), which is what groups the grades page by course later.
+async function mayWorkIn(
+  user: User,
+  course: Course
+): Promise<boolean> {
   const db = await getDb();
-  const course = await db.query.courses.findFirst({
-    where: and(eq(courses.id, courseId), eq(courses.published, true)),
+  const record = await db.query.enrollments.findFirst({
+    where: and(
+      eq(enrollments.userId, user.id),
+      eq(enrollments.courseId, course.id)
+    ),
   });
-  if (!course) return;
+  if (record) return true;
+  if (user.role !== "admin" && (!course.current || !course.published))
+    return false;
   await db
     .insert(enrollments)
-    .values({ userId: user.id, courseId })
+    .values({ userId: user.id, courseId: course.id })
     .onConflictDoNothing();
-  revalidatePath("/courses");
-  redirect(`/courses/${course.slug}`);
+  return true;
 }
 
 export async function toggleLessonComplete(lessonId: number): Promise<void> {
@@ -39,14 +51,10 @@ export async function toggleLessonComplete(lessonId: number): Promise<void> {
     where: eq(lessons.id, lessonId),
   });
   if (!lesson) return;
-  // Only enrolled students can record progress.
-  const enrolled = await db.query.enrollments.findFirst({
-    where: and(
-      eq(enrollments.userId, user.id),
-      eq(enrollments.courseId, lesson.courseId)
-    ),
+  const course = await db.query.courses.findFirst({
+    where: eq(courses.id, lesson.courseId),
   });
-  if (!enrolled) return;
+  if (!course || !(await mayWorkIn(user, course))) return;
 
   const existing = await db.query.lessonProgress.findFirst({
     where: and(
@@ -86,13 +94,11 @@ export async function submitAssignment(
   });
   if (!assignment || !assignment.published)
     return { error: "This assignment is no longer available." };
-  const enrolled = await db.query.enrollments.findFirst({
-    where: and(
-      eq(enrollments.userId, user.id),
-      eq(enrollments.courseId, assignment.courseId)
-    ),
+  const course = await db.query.courses.findFirst({
+    where: eq(courses.id, assignment.courseId),
   });
-  if (!enrolled) return { error: "You aren't enrolled in this course." };
+  if (!course || !(await mayWorkIn(user, course)))
+    return { error: "This assignment isn't part of the current course." };
 
   // One open submission at a time: an approved assignment is done, and a
   // submitted one is waiting on a grader.

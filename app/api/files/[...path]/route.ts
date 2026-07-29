@@ -21,9 +21,13 @@ export async function GET(
   if (!abs.startsWith(root + path.sep)) {
     return new Response("Not found", { status: 404 });
   }
-  const ownerId = Number(parts[0]);
-  if (user.role !== "admin" && ownerId !== user.id) {
-    return new Response("Forbidden", { status: 403 });
+  // "content/…" holds course materials (worksheets) — any signed-in user.
+  // Everything else is a student's submission folder: owner or admin only.
+  if (parts[0] !== "content") {
+    const ownerId = Number(parts[0]);
+    if (user.role !== "admin" && ownerId !== user.id) {
+      return new Response("Forbidden", { status: 403 });
+    }
   }
 
   try {

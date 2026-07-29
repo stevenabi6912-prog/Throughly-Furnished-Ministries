@@ -2,15 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { courses, getDb, users } from "@/lib/db";
-import { getEnrolledCourses, getGradebook } from "@/lib/data";
+import { getGradebook } from "@/lib/data";
 import {
-  setStudentEnrollment,
+  setCourseCompletion,
   setUserActive,
   setUserRole,
 } from "@/lib/actions/admin";
 import { requireAdmin } from "@/lib/auth/session";
 import PageHero from "@/components/PageHero";
-import StatusBadge from "@/components/StatusBadge";
+import ReportCard from "@/components/ReportCard";
 
 export default async function AdminStudentDetailPage({
   params,
@@ -28,99 +28,90 @@ export default async function AdminStudentDetailPage({
   });
   if (!student) notFound();
 
-  const [gradebook, enrolled, allCourses] = await Promise.all([
+  const [gradebook, allCourses] = await Promise.all([
     getGradebook(student.id),
-    getEnrolledCourses(student.id),
     db.query.courses.findMany({
       orderBy: [asc(courses.track), asc(courses.sortOrder)],
     }),
   ]);
-  const enrolledIds = new Set(enrolled.map((c) => c.id));
+  const recordByCourse = new Map(gradebook.map((g) => [g.course.id, g]));
   const isSelf = student.id === admin.id;
+
+  // Submissions still waiting on a grade, surfaced for quick access.
+  const waiting = gradebook.flatMap(({ rows }) =>
+    rows.filter((r) => r.submission?.status === "submitted")
+  );
 
   return (
     <>
       <PageHero eyebrow="Admin · Student" title={student.name} intro={student.email} />
       <section className="bg-slate-50 px-4 py-12">
         <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_18rem]">
-          {/* Gradebook */}
           <div className="space-y-6">
-            <h2 className="text-2xl">Gradebook</h2>
-            {gradebook.length === 0 && (
-              <p className="text-slate-600">Not enrolled in any courses yet.</p>
-            )}
-            {gradebook.map(({ course, rows, earned, possible }) => (
-              <div key={course.id} className="overflow-hidden rounded-2xl bg-white shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900 px-5 py-3 text-white">
-                  <h3 className="font-semibold">{course.title}</h3>
-                  {possible > 0 && (
-                    <span className="text-sm font-semibold text-brand-400">
-                      {earned}/{possible} ({Math.round((earned / possible) * 100)}%)
-                    </span>
-                  )}
-                </div>
-                <ul className="divide-y divide-slate-100">
-                  {rows.map(({ assignment, submission }) => (
-                    <li
-                      key={assignment.id}
-                      className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
-                    >
-                      <span className="font-medium text-slate-800">
-                        {assignment.title}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        {submission?.status === "approved" &&
-                          submission.score !== null && (
-                            <span className="font-bold">
-                              {submission.score}/{assignment.points}
-                            </span>
-                          )}
-                        {submission && submission.status === "submitted" ? (
-                          <Link
-                            href={`/admin/grading/${submission.id}`}
-                            className="font-semibold text-brand-700 hover:underline"
-                          >
-                            Grade now →
-                          </Link>
-                        ) : (
-                          <StatusBadge status={submission?.status ?? "notsubmitted"} />
-                        )}
-                      </span>
+            {waiting.length > 0 && (
+              <div className="rounded-2xl bg-amber-50 p-5">
+                <h2 className="text-sm font-bold text-amber-900">
+                  Waiting to be graded
+                </h2>
+                <ul className="mt-2 space-y-1">
+                  {waiting.map(({ assignment, submission }) => (
+                    <li key={assignment.id}>
+                      <Link
+                        href={`/admin/grading/${submission!.id}`}
+                        className="text-sm font-semibold text-brand-700 hover:underline"
+                      >
+                        {assignment.title} →
+                      </Link>
                     </li>
                   ))}
                 </ul>
               </div>
-            ))}
+            )}
+            <ReportCard studentName={student.name} gradebook={gradebook} />
           </div>
 
           {/* Management sidebar */}
           <div className="space-y-8">
             <div className="rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="font-bold text-slate-900">Enrollments</h2>
+              <h2 className="font-bold text-slate-900">Course Record</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Marking a course complete awards its credits (and the
+                Complete/Pass on the report card).
+              </p>
               <ul className="mt-3 space-y-2">
                 {allCourses.map((course) => {
-                  const isEnrolled = enrolledIds.has(course.id);
+                  const record = recordByCourse.get(course.id);
+                  const completed = Boolean(record?.completedAt);
                   return (
                     <li
                       key={course.id}
                       className="flex items-center justify-between gap-2 text-sm"
                     >
-                      <span className={isEnrolled ? "text-slate-800" : "text-slate-500"}>
+                      <span
+                        className={
+                          record ? "text-slate-800" : "text-slate-400"
+                        }
+                      >
                         {course.title}
+                        {completed && " ✓"}
                       </span>
-                      <form action={setStudentEnrollment}>
+                      <form action={setCourseCompletion}>
                         <input type="hidden" name="userId" value={student.id} />
                         <input type="hidden" name="courseId" value={course.id} />
-                        <input type="hidden" name="enroll" value={isEnrolled ? "0" : "1"} />
+                        <input
+                          type="hidden"
+                          name="complete"
+                          value={completed ? "0" : "1"}
+                        />
                         <button
                           type="submit"
                           className={`rounded px-2 py-1 text-xs font-semibold ${
-                            isEnrolled
-                              ? "text-red-600 hover:bg-red-50"
+                            completed
+                              ? "text-slate-500 hover:bg-slate-100"
                               : "text-brand-700 hover:bg-slate-100"
                           }`}
                         >
-                          {isEnrolled ? "Remove" : "Enroll"}
+                          {completed ? "Un-complete" : "Mark complete"}
                         </button>
                       </form>
                     </li>
@@ -163,7 +154,7 @@ export default async function AdminStudentDetailPage({
                         : "border-green-500 text-green-700 hover:bg-green-50"
                     }`}
                   >
-                    {student.active ? "Deactivate Account" : "Reactivate Account"}
+                    {student.active ? "Archive Account" : "Restore Account"}
                   </button>
                 </form>
               </div>
