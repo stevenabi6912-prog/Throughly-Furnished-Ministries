@@ -193,7 +193,7 @@ export default async function LessonPage({
                 {mine[0]?.feedback && (
                   <div className="mt-4 rounded-lg border-l-4 border-brand-500 bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Mentor feedback
+                      Teacher feedback
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
                       {mine[0].feedback}
@@ -206,7 +206,7 @@ export default async function LessonPage({
                   </p>
                 ) : pending ? (
                   <p className="mt-4 rounded-lg bg-amber-50 p-4 text-sm font-medium text-amber-800">
-                    Your work is in — a mentor will review it soon.
+                    Your work is in — a teacher will review it soon.
                   </p>
                 ) : (
                   <SubmissionForm assignmentId={assignment.id} />

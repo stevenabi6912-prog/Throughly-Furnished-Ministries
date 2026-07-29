@@ -138,7 +138,7 @@ export default async function HomePage() {
               {
                 step: "4",
                 title: "Grow",
-                body: "Mentors grade every assignment and give personal feedback.",
+                body: "Teachers grade every assignment and give personal feedback.",
               },
             ].map((item) => (
               <li key={item.step} className="rounded-2xl border border-slate-200 p-7">

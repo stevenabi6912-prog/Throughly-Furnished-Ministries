@@ -109,7 +109,7 @@ export default async function AssignmentPage({
                     {sub.feedback && (
                       <div className="mt-3 rounded-lg border-l-4 border-brand-500 bg-white p-4">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                          Mentor feedback
+                          Teacher feedback
                         </p>
                         <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
                           {sub.feedback}
@@ -130,7 +130,7 @@ export default async function AssignmentPage({
               </p>
             ) : pending ? (
               <p className="rounded-2xl bg-amber-50 p-5 text-sm font-medium text-amber-800">
-                Your work is in — a mentor will review it soon.
+                Your work is in — a teacher will review it soon.
               </p>
             ) : (
               <>

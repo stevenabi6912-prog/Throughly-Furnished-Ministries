@@ -64,9 +64,6 @@ export default function Footer() {
             © {new Date().getFullYear()} {site.name}
           </p>
           <p className="flex gap-5 text-xs">
-            <a href={site.social.facebook} className="text-slate-400 hover:text-white">
-              Facebook
-            </a>
             <a href={site.church.url} className="text-slate-400 hover:text-white">
               {site.church.name}
             </a>
