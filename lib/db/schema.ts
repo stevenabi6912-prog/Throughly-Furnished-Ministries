@@ -179,9 +179,31 @@ export const submissions = pgTable("submissions", {
   gradedAt: timestamp("graded_at"),
 });
 
+// Individual assignment/component scores for an enrollment — the "Worksheet
+// 94, Midterm 96, Final Exam 98" breakdown behind a course's grade. Used
+// both by archived pre-site coursework (imported from paper/LearnDash
+// gradebooks, where there's no matching `assignments` row to hang a
+// `submissions.score` off of) and as a lightweight paper trail an admin can
+// enter by hand for any course.
+export const enrollmentScores = pgTable(
+  "enrollment_scores",
+  {
+    id: serial("id").primaryKey(),
+    enrollmentId: integer("enrollment_id")
+      .notNull()
+      .references(() => enrollments.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    score: integer("score").notNull(),
+    recordedAt: timestamp("recorded_at"),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [uniqueIndex("enrollment_scores_sort_idx").on(t.enrollmentId, t.sortOrder)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Course = typeof courses.$inferSelect;
 export type Lesson = typeof lessons.$inferSelect;
 export type Assignment = typeof assignments.$inferSelect;
 export type Enrollment = typeof enrollments.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
+export type EnrollmentScore = typeof enrollmentScores.$inferSelect;

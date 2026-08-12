@@ -68,7 +68,7 @@ export default async function AdminStudentDetailPage({
                 </ul>
               </div>
             )}
-            <ReportCard studentName={student.name} gradebook={gradebook} />
+            <ReportCard studentName={student.name} gradebook={gradebook} linkAssignments />
           </div>
 
           {/* Management sidebar */}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Assignment, Course, Submission } from "@/lib/db/schema";
+import type { Assignment, Course, EnrollmentScore, Submission } from "@/lib/db/schema";
 import { buildReportCard, rowGradeLabel, type ReportRow } from "@/lib/grades";
 import StatusBadge from "@/components/StatusBadge";
 
@@ -7,6 +7,7 @@ type GradebookEntry = {
   course: Course;
   completedAt: Date | null;
   rows: { assignment: Assignment; submission: Submission | null }[];
+  archivedScores?: EnrollmentScore[];
   earned: number;
   possible: number;
 };
@@ -146,12 +147,13 @@ function ReportRowView({
   detail?: GradebookEntry;
 }) {
   const label = rowGradeLabel(row);
-  const showDetail = detail && detail.rows.length > 0;
+  const hasLiveDetail = detail && detail.rows.length > 0;
+  const hasArchivedDetail = detail && !hasLiveDetail && (detail.archivedScores?.length ?? 0) > 0;
   return (
     <>
       <tr className="border-t border-slate-100">
         <td className="px-6 py-3 font-semibold text-slate-900">
-          {showDetail ? (
+          {hasLiveDetail ? (
             <details>
               <summary className="cursor-pointer">{row.course.title}</summary>
               <ul className="mt-2 space-y-1 pl-4 font-normal">
@@ -175,6 +177,21 @@ function ReportRowView({
                         )}
                       <StatusBadge status={submission?.status ?? "notsubmitted"} />
                     </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : hasArchivedDetail ? (
+            <details>
+              <summary className="cursor-pointer">{row.course.title}</summary>
+              <ul className="mt-2 space-y-1 pl-4 font-normal">
+                {detail!.archivedScores!.map((score) => (
+                  <li
+                    key={score.id}
+                    className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"
+                  >
+                    <span>{score.label}</span>
+                    <span className="font-semibold text-slate-800">{score.score}</span>
                   </li>
                 ))}
               </ul>

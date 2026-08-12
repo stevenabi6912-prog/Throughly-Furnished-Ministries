@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
   assignments,
   courses,
+  enrollmentScores,
   enrollments,
   getDb,
   lessonProgress,
@@ -11,6 +12,7 @@ import {
   users,
   type Assignment,
   type Course,
+  type EnrollmentScore,
   type Submission,
 } from "@/lib/db";
 
@@ -187,6 +189,7 @@ export async function getGradebook(userId: number) {
     completedAt: Date | null;
     overridePct: number | null;
     rows: { assignment: Assignment; submission: Submission | null }[];
+    archivedScores: EnrollmentScore[];
     earned: number;
     possible: number;
   }[] = [];
@@ -194,12 +197,22 @@ export async function getGradebook(userId: number) {
   const enrollmentRows = await db.query.enrollments.findMany({
     where: eq(enrollments.userId, userId),
   });
-  const completedByCourse = new Map(
-    enrollmentRows.map((e) => [e.courseId, e.completedAt])
-  );
-  const overrideByCourse = new Map(
-    enrollmentRows.map((e) => [e.courseId, e.overridePct])
-  );
+  const enrollmentByCourse = new Map(enrollmentRows.map((e) => [e.courseId, e]));
+  const scoresByEnrollment = new Map<number, EnrollmentScore[]>();
+  if (enrollmentRows.length > 0) {
+    const scores = await db.query.enrollmentScores.findMany({
+      where: inArray(
+        enrollmentScores.enrollmentId,
+        enrollmentRows.map((e) => e.id)
+      ),
+      orderBy: [asc(enrollmentScores.sortOrder)],
+    });
+    for (const score of scores) {
+      const list = scoresByEnrollment.get(score.enrollmentId) ?? [];
+      list.push(score);
+      scoresByEnrollment.set(score.enrollmentId, list);
+    }
+  }
   for (const course of enrolled) {
     const { assignments: courseAssignments } = await getCourseContent(
       course.id
@@ -220,11 +233,13 @@ export async function getGradebook(userId: number) {
         possible += assignment.points;
       }
     }
+    const enrollment = enrollmentByCourse.get(course.id);
     result.push({
       course,
-      completedAt: completedByCourse.get(course.id) ?? null,
-      overridePct: overrideByCourse.get(course.id) ?? null,
+      completedAt: enrollment?.completedAt ?? null,
+      overridePct: enrollment?.overridePct ?? null,
       rows,
+      archivedScores: enrollment ? (scoresByEnrollment.get(enrollment.id) ?? []) : [],
       earned,
       possible,
     });

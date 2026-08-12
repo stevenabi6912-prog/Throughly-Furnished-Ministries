@@ -43,6 +43,13 @@
       "when": 1785289263576,
       "tag": "0005_overjoyed_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786563081852,
+      "tag": "0006_moaning_joseph",
+      "breakpoints": true
     }
   ]
 }
