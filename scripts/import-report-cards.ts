@@ -212,7 +212,8 @@ async function main() {
                 title,
                 track: "ministry-participation",
                 published: true,
-                description: `Ministry Participation for ${term}.`,
+                description:
+                  "Hands-on service this term in one of the ministry's areas of need — audio, video, financial counting, teaching, class helper, greeter, nursery, or maintenance.",
               })
               .returning();
             courseId = created.id;

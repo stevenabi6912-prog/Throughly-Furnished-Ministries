@@ -72,11 +72,6 @@ export default async function TrackPage({
                       </span>
                     )}
                   </h3>
-                  {course.description && (
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
-                      {course.description}
-                    </p>
-                  )}
                 </div>
               ))}
             </div>

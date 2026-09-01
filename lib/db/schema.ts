@@ -166,8 +166,8 @@ export const submissions = pgTable("submissions", {
   status: submissionStatusEnum("status").notNull().default("submitted"),
   submittedAt: timestamp("submitted_at").notNull().defaultNow(),
   // Claude's suggested grade, generated right after submission. Never
-  // shown to the student — it pre-fills the mentor's grading form, and
-  // the mentor approves (or edits) before anything is released.
+  // shown to the student — it pre-fills the teacher's grading form, and
+  // the teacher approves (or edits) before anything is released.
   aiScore: integer("ai_score"),
   aiFeedback: text("ai_feedback"),
   // Grading — filled in by an admin.
@@ -177,6 +177,20 @@ export const submissions = pgTable("submissions", {
     onDelete: "set null",
   }),
   gradedAt: timestamp("graded_at"),
+});
+
+// Bug reports students/teachers file from the little bug button in the
+// header — visible only when signed in. Admins review them on
+// /admin/bugs and mark each resolved once it's fixed.
+export const bugReports = pgTable("bug_reports", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  description: text("description").notNull(),
+  pageUrl: text("page_url"),
+  resolved: boolean("resolved").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Individual assignment/component scores for an enrollment — the "Worksheet
@@ -207,3 +221,4 @@ export type Assignment = typeof assignments.$inferSelect;
 export type Enrollment = typeof enrollments.$inferSelect;
 export type Submission = typeof submissions.$inferSelect;
 export type EnrollmentScore = typeof enrollmentScores.$inferSelect;
+export type BugReport = typeof bugReports.$inferSelect;

@@ -41,7 +41,7 @@ export const TRACK_INFO: Record<
     href: "/ministry-participation",
     image: "/images/track-ministry-participation.png",
     blurb:
-      "Hands-on service in the ministries of the local church — learning by doing, alongside mentors.",
+      "Hands-on service in the ministries of the local church — audio, video, financial counting, teaching, class helping, greeting, nursery, and maintenance — learning by doing, alongside teachers.",
   },
 };
 

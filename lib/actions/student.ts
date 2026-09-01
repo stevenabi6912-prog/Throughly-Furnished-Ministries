@@ -113,7 +113,7 @@ export async function submitAssignment(
       .values({ userId: user.id, lessonId: assignment.lessonId })
       .onConflictDoNothing();
   }
-  // Claude drafts a suggested grade in the background; a mentor reviews it
+  // Claude drafts a suggested grade in the background; a teacher reviews it
   // in the grading queue before the student sees anything.
   after(() => aiGradeSubmission(created.id));
   revalidatePath(`/assignments/${assignmentId}`);
