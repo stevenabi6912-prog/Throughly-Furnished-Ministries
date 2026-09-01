@@ -85,6 +85,39 @@ async function main() {
     }
   }
 
+  const LESSON1_CONTENT = `
+    <p>Welcome! This is a sample lesson so you can see exactly how a real
+    lesson works before the trimester starts.</p>
+    <p>Every real lesson has three parts, right in one place: a teaching
+    video, a fillable worksheet PDF, and a spot to turn in your finished
+    homework — all on this same page. You don't need to email anything or
+    print anything separate.</p>
+    <p>Lessons unlock every <strong>Sunday at 3:00 PM Eastern</strong>, and
+    homework is due the following <strong>Saturday at midnight</strong>. If
+    it comes in late, it drops 10% for each week it's overdue — so the
+    homework below is marked <strong>past due</strong>, on purpose, so you
+    can see what that looks like.</p>
+  `.trim();
+  const HOMEWORK1_INSTRUCTIONS = `
+    <p>This is a practice assignment — nothing you submit here is graded
+    or kept. Try uploading any file (a photo of a piece of paper works
+    fine) just to see how turning in homework works.</p>
+    <p>Notice that once you turn something in, the lesson automatically
+    marks itself complete — there's no separate "mark as done" button to
+    remember.</p>
+  `.trim();
+  const LESSON2_CONTENT = `
+    <p>This second sample lesson opened this past Sunday, and its homework
+    is due <strong>this coming Saturday</strong> — this is what a normal,
+    on-time assignment looks like on your dashboard, versus the past-due
+    one in the first sample lesson.</p>
+  `.trim();
+  const HOMEWORK2_INSTRUCTIONS = `
+    <p>Same as before — this is just a practice run. Upload any file to
+    see the turn-in process, then check your dashboard to see this one
+    marked complete.</p>
+  `.trim();
+
   if (demoCourse) {
     // Lesson 1 — already open, homework overdue.
     const l1Available = easternToUtc("2026-08-23T15:00");
@@ -100,14 +133,15 @@ async function main() {
             courseId: demoCourse.id,
             slug: "sample-lesson-1",
             title: "Sample Lesson 1 — Getting Started",
-            contentHtml:
-              "<p>This is a sample lesson for the orientation walkthrough. In a real lesson, this is where the teaching video and worksheet would go.</p>",
+            contentHtml: LESSON1_CONTENT,
             availableAt: l1Available,
             sortOrder: 10,
             published: true,
           })
           .returning();
       }
+    } else if (!dryRun) {
+      await db.update(lessons).set({ contentHtml: LESSON1_CONTENT }).where(eq(lessons.id, lesson1.id));
     }
     if (lesson1) {
       const existing = await db.query.assignments.findFirst({
@@ -120,13 +154,18 @@ async function main() {
             courseId: demoCourse.id,
             lessonId: lesson1.id,
             title: "Homework — Sample Lesson 1",
-            instructionsHtml: "<p>Upload any file — this is just to demo how homework turn-in works.</p>",
+            instructionsHtml: HOMEWORK1_INSTRUCTIONS,
             points: 100,
             dueAt: saturdayDeadlineAfter(l1Available),
             sortOrder: 10,
             published: true,
           });
         }
+      } else if (!dryRun) {
+        await db
+          .update(assignments)
+          .set({ instructionsHtml: HOMEWORK1_INSTRUCTIONS })
+          .where(eq(assignments.id, existing.id));
       }
     }
 
@@ -144,14 +183,15 @@ async function main() {
             courseId: demoCourse.id,
             slug: "sample-lesson-2",
             title: "Sample Lesson 2 — This Week",
-            contentHtml:
-              "<p>This is a sample lesson for the orientation walkthrough.</p>",
+            contentHtml: LESSON2_CONTENT,
             availableAt: l2Available,
             sortOrder: 20,
             published: true,
           })
           .returning();
       }
+    } else if (!dryRun) {
+      await db.update(lessons).set({ contentHtml: LESSON2_CONTENT }).where(eq(lessons.id, lesson2.id));
     }
     if (lesson2) {
       const existing = await db.query.assignments.findFirst({
@@ -164,13 +204,18 @@ async function main() {
             courseId: demoCourse.id,
             lessonId: lesson2.id,
             title: "Homework — Sample Lesson 2",
-            instructionsHtml: "<p>Upload any file — this is just to demo how homework turn-in works.</p>",
+            instructionsHtml: HOMEWORK2_INSTRUCTIONS,
             points: 100,
             dueAt: saturdayDeadlineAfter(l2Available),
             sortOrder: 20,
             published: true,
           });
         }
+      } else if (!dryRun) {
+        await db
+          .update(assignments)
+          .set({ instructionsHtml: HOMEWORK2_INSTRUCTIONS })
+          .where(eq(assignments.id, existing.id));
       }
     }
   }
