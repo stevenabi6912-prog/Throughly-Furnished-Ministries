@@ -24,7 +24,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Coursework</strong> (assignment submissions, grades,
-              lesson progress) — so mentors can review your work and track
+              lesson progress) — so teachers can review your work and track
               your training.
             </li>
           </ul>
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
           </ul>
           <h2>Your coursework and grades</h2>
           <p>
-            Submissions and grades are visible to you and to TFM mentors and
+            Submissions and grades are visible to you and to TFM teachers and
             administrators. They are kept as a record of your training.
           </p>
           <h2>Questions or removal</h2>

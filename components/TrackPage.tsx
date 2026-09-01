@@ -8,14 +8,21 @@ export default async function TrackPage({
   track,
   heroImage,
   children,
+  areasOfService,
 }: {
   track: keyof typeof TRACK_INFO;
   heroImage: string;
   children: React.ReactNode; // the track's descriptive copy
+  // Ministry Participation isn't a curriculum students pick courses
+  // from — it's ongoing service tracked term by term. When set, this
+  // replaces the "Courses in This Program" grid (which would otherwise
+  // list every historical term as if it were a course) with a simple
+  // list of the actual areas students serve in.
+  areasOfService?: string[];
 }) {
   const info = TRACK_INFO[track];
   const [coursesInTrack, user] = await Promise.all([
-    getPublishedCourses(track),
+    areasOfService ? Promise.resolve([]) : getPublishedCourses(track),
     getCurrentUser(),
   ]);
 
@@ -53,8 +60,21 @@ export default async function TrackPage({
 
       <section className="bg-slate-50 px-4 py-16 sm:py-20">
         <div className="mx-auto max-w-5xl">
-          <h2 className="text-center text-4xl">Courses in This Program</h2>
-          {coursesInTrack.length === 0 ? (
+          <h2 className="text-center text-4xl">
+            {areasOfService ? "Areas of Service" : "Courses in This Program"}
+          </h2>
+          {areasOfService ? (
+            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {areasOfService.map((area) => (
+                <div
+                  key={area}
+                  className="rounded-2xl bg-white p-6 text-center shadow-sm"
+                >
+                  <p className="font-semibold text-slate-900">{area}</p>
+                </div>
+              ))}
+            </div>
+          ) : coursesInTrack.length === 0 ? (
             <p className="mt-8 text-center text-slate-600">
               Courses for this program are being prepared — check back soon.
             </p>

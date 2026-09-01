@@ -80,7 +80,7 @@ async function main() {
       title: "Serving in the Local Church",
       track: "ministry-participation" as const,
       description:
-        "Active participation in the ministries of Faith Baptist Church, with mentor reflection.",
+        "Active participation in the ministries of Faith Baptist Church, with teacher reflection.",
       lessons: [
         { title: "Finding Your Place to Serve", content: "<p>Survey of the church's ministries and how to plug in.</p>" },
       ],

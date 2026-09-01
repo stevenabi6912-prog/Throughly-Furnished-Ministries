@@ -14,7 +14,7 @@
  *   quiz attempts (learndash_user_activity)        → graded submissions
  *   sfwd-essays answers                            → submission text
  *   sfwd-assignment file uploads                   → submissions
- *   comments on assignment posts                   → mentor feedback
+ *   comments on assignment posts                   → teacher feedback
  *   topic/lesson progress (usermeta + activity)    → lesson progress and
  *                                                    course completion
  *

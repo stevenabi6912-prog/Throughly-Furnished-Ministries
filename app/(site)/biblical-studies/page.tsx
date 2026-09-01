@@ -20,7 +20,7 @@ export default function BiblicalStudiesPage() {
       <p>
         Courses move verse by verse and doctrine by doctrine, with written
         assignments that push students to study for themselves rather than
-        repeat what they&rsquo;ve heard. Mentors read and respond to every
+        repeat what they&rsquo;ve heard. Teachers read and respond to every
         assignment personally.
       </p>
     </TrackPage>
