@@ -88,28 +88,26 @@ export default async function HomePage() {
               <Link
                 key={key}
                 href={track.href}
-                className="hover-lift group overflow-hidden rounded-2xl bg-white text-center shadow-sm"
+                className="hover-lift group rounded-2xl bg-white p-8 text-center shadow-sm"
               >
-                <div className="relative h-48 w-full overflow-hidden bg-slate-200">
+                <div className="relative mx-auto h-28 w-28 overflow-hidden rounded-full shadow-md ring-4 ring-slate-100 transition-transform duration-300 group-hover:scale-105">
                   <Image
                     src={track.image}
                     alt=""
                     fill
-                    sizes="(min-width: 768px) 33vw, 100vw"
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    sizes="112px"
+                    className="object-cover"
                   />
                 </div>
-                <div className="p-8">
-                  <h3 className="text-xl font-bold text-slate-900 group-hover:text-brand-700">
-                    {track.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    {track.blurb}
-                  </p>
-                  <span className="mt-5 inline-block text-sm font-semibold text-brand-700">
-                    Learn more →
-                  </span>
-                </div>
+                <h3 className="mt-6 text-xl font-bold text-slate-900 group-hover:text-brand-700">
+                  {track.title}
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                  {track.blurb}
+                </p>
+                <span className="mt-5 inline-block text-sm font-semibold text-brand-700">
+                  Learn more →
+                </span>
               </Link>
             ))}
           </div>
