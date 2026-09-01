@@ -218,6 +218,52 @@ async function main() {
           .where(eq(assignments.id, existing.id));
       }
     }
+
+    // Weekly Devotions + Sermon Notes — not tied to a lesson, due the
+    // same Saturday as this week's homework. A real course would get one
+    // of each per week of the trimester (see the CE311 builder).
+    const weeklyDue = saturdayDeadlineAfter(l2Available);
+    const weekly: { slugSuffix: string; title: string; task: string }[] = [
+      {
+        slugSuffix: "devotions",
+        title: "Weekly Devotions",
+        task: "your devotions journal for this week",
+      },
+      {
+        slugSuffix: "sermon-notes",
+        title: "Weekly Sermon Notes",
+        task: "your notes from a sermon you heard this week",
+      },
+    ];
+    for (const w of weekly) {
+      const instructions = `<p>Take a picture of ${w.task} and upload it here — due every Saturday, same as your lesson homework.</p>`;
+      const existing = await db.query.assignments.findFirst({
+        where: and(
+          eq(assignments.courseId, demoCourse.id),
+          eq(assignments.title, w.title)
+        ),
+      });
+      if (!existing) {
+        console.log(`would create standing assignment: ${w.title}`);
+        if (!dryRun) {
+          await db.insert(assignments).values({
+            courseId: demoCourse.id,
+            lessonId: null,
+            title: w.title,
+            instructionsHtml: instructions,
+            points: 100,
+            dueAt: weeklyDue,
+            sortOrder: 30,
+            published: true,
+          });
+        }
+      } else if (!dryRun) {
+        await db
+          .update(assignments)
+          .set({ instructionsHtml: instructions, dueAt: weeklyDue })
+          .where(eq(assignments.id, existing.id));
+      }
+    }
   }
 
   if (!dryRun && demoUser && demoCourse) {
