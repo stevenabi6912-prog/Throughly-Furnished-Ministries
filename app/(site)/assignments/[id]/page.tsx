@@ -4,6 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/session";
 import { assignments, courses, getDb, submissions } from "@/lib/db";
 import { canViewCourse } from "@/lib/data";
+import { formatEastern } from "@/lib/time";
 import StatusBadge from "@/components/StatusBadge";
 import SubmissionForm from "./SubmissionForm";
 
@@ -37,6 +38,7 @@ export default async function AssignmentPage({
   });
   const approved = mySubmissions.find((s) => s.status === "approved");
   const pending = mySubmissions.find((s) => s.status === "submitted");
+  const isLate = Boolean(assignment.dueAt && assignment.dueAt < new Date());
 
   return (
     <>
@@ -49,11 +51,16 @@ export default async function AssignmentPage({
             ← {course.title}
           </Link>
           <h1 className="mt-3 text-3xl sm:text-4xl">{assignment.title}</h1>
-          <p className="mt-2 text-sm text-slate-400">
-            {assignment.points} points
-            {assignment.dueAt &&
-              ` · due ${assignment.dueAt.toLocaleDateString()}`}
-          </p>
+          <p className="mt-2 text-sm text-slate-400">{assignment.points} points</p>
+          {assignment.dueAt && (
+            <p
+              className={`mt-1 text-sm font-semibold ${isLate ? "text-red-400" : "text-slate-300"}`}
+            >
+              {isLate ? "Past due — " : "Due "}
+              {formatEastern(assignment.dueAt)}
+              {isLate && " · late work loses 10% per week"}
+            </p>
+          )}
         </div>
       </section>
 

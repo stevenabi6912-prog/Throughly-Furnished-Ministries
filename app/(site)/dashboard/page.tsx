@@ -109,7 +109,7 @@ export default async function DashboardPage() {
                           }`}
                         >
                           {assignment.dueAt
-                            ? `${isLate ? "Past due — " : "Due "}${formatEastern(assignment.dueAt)}`
+                            ? `${isLate ? "Past due — " : "Due "}${formatEastern(assignment.dueAt)}${isLate ? " (10% off per week late)" : ""}`
                             : "Turn in →"}
                         </span>
                       </Link>
