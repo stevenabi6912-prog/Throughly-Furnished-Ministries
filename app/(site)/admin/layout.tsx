@@ -6,6 +6,7 @@ const adminLinks = [
   { label: "Courses", href: "/admin/courses" },
   { label: "Grading", href: "/admin/grading" },
   { label: "Students", href: "/admin/students" },
+  { label: "Bug Reports", href: "/admin/bugs" },
 ];
 
 export default async function AdminLayout({

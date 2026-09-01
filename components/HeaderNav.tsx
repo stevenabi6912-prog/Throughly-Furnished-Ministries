@@ -63,14 +63,24 @@ export default function HeaderNav({ user }: { user: SessionUser }) {
             </Link>
           ))}
           {user ? (
-            <form action={logout} className="ml-2">
-              <button
-                type="submit"
-                className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
+            <>
+              <Link
+                href="/report-bug"
+                title="Report a bug"
+                aria-label="Report a bug"
+                className="ml-1 rounded-lg px-2.5 py-2 text-lg text-slate-300 transition-colors hover:bg-slate-900 hover:text-white"
               >
-                Log Out
-              </button>
-            </form>
+                🐛
+              </Link>
+              <form action={logout} className="ml-1">
+                <button
+                  type="submit"
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:text-white"
+                >
+                  Log Out
+                </button>
+              </form>
+            </>
           ) : (
             <>
               <Link href="/login" className={linkClass("/login")}>
@@ -136,14 +146,23 @@ export default function HeaderNav({ user }: { user: SessionUser }) {
           </div>
           <div className="mt-4 border-t border-slate-800 pt-4">
             {user ? (
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="block w-full rounded px-2 py-2 text-left text-base text-slate-300 hover:bg-slate-900"
+              <>
+                <Link
+                  href="/report-bug"
+                  onClick={close}
+                  className="block rounded px-2 py-2 text-base text-slate-300 hover:bg-slate-900"
                 >
-                  Log Out ({user.name})
-                </button>
-              </form>
+                  🐛 Report a Bug
+                </Link>
+                <form action={logout}>
+                  <button
+                    type="submit"
+                    className="mt-1 block w-full rounded px-2 py-2 text-left text-base text-slate-300 hover:bg-slate-900"
+                  >
+                    Log Out ({user.name})
+                  </button>
+                </form>
+              </>
             ) : (
               <Link href="/login" onClick={close} className="block rounded px-2 py-2 text-base text-slate-300 hover:bg-slate-900">
                 Log In
