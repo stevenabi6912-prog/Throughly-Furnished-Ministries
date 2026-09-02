@@ -38,6 +38,77 @@ const TRACK_SECTIONS: {
   },
 ];
 
+type DetailRow = {
+  key: string;
+  label: string;
+  href?: string;
+  scoreDisplay: string | null;
+  submissionStatus: string | null; // null for archived-only rows (no badge)
+};
+
+// Some migrated courses have both real submissions (from the original
+// LearnDash import, for students who took the quiz digitally back then)
+// and archived component scores (imported later from paper gradebooks,
+// for students who didn't). Merge them per assignment — a real
+// submission always wins for that row — instead of picking one source
+// for the whole course, which would either bury real grades under a
+// wall of "Not submitted" or hide someone else's real work.
+function mergeDetailRows(detail: GradebookEntry): DetailRow[] {
+  const archived = detail.archivedScores ?? [];
+  const normalize = (s: string) =>
+    s
+      .replace(/^(Quiz|Homework)\s*—\s*/i, "")
+      .trim()
+      .toLowerCase();
+  const archivedByLabel = new Map(archived.map((a) => [normalize(a.label), a]));
+  const usedArchivedIds = new Set<number>();
+
+  const rows: DetailRow[] = detail.rows.map(({ assignment, submission }) => {
+    if (submission) {
+      return {
+        key: `a${assignment.id}`,
+        label: assignment.title,
+        href: `/assignments/${assignment.id}`,
+        scoreDisplay:
+          submission.status === "approved" && submission.score !== null
+            ? `${submission.score}/${assignment.points}`
+            : null,
+        submissionStatus: submission.status,
+      };
+    }
+    const match = archivedByLabel.get(normalize(assignment.title));
+    if (match) {
+      usedArchivedIds.add(match.id);
+      return {
+        key: `a${assignment.id}`,
+        label: assignment.title,
+        href: `/assignments/${assignment.id}`,
+        scoreDisplay: String(match.score),
+        submissionStatus: null,
+      };
+    }
+    return {
+      key: `a${assignment.id}`,
+      label: assignment.title,
+      href: `/assignments/${assignment.id}`,
+      scoreDisplay: null,
+      submissionStatus: "notsubmitted",
+    };
+  });
+
+  for (const score of archived) {
+    if (usedArchivedIds.has(score.id)) continue;
+    rows.push({
+      key: `s${score.id}`,
+      label: score.label,
+      scoreDisplay: String(score.score),
+      submissionStatus: null,
+    });
+  }
+
+  return rows;
+}
+
 /**
  * The TFM report card, matching the paper one: Biblical Studies courses
  * carry letter grades and GPA, Practical Skills are Complete/Incomplete,
@@ -147,51 +218,34 @@ function ReportRowView({
   detail?: GradebookEntry;
 }) {
   const label = rowGradeLabel(row);
-  const hasLiveDetail = detail && detail.rows.length > 0;
-  const hasArchivedDetail = detail && !hasLiveDetail && (detail.archivedScores?.length ?? 0) > 0;
+  const mergedRows = detail ? mergeDetailRows(detail) : [];
+  const hasDetail = mergedRows.length > 0;
   return (
     <>
       <tr className="border-t border-slate-100">
         <td className="px-6 py-3 font-semibold text-slate-900">
-          {hasLiveDetail ? (
+          {hasDetail ? (
             <details>
               <summary className="cursor-pointer">{row.course.title}</summary>
               <ul className="mt-2 space-y-1 pl-4 font-normal">
-                {detail.rows.map(({ assignment, submission }) => (
+                {mergedRows.map((r) => (
                   <li
-                    key={assignment.id}
+                    key={r.key}
                     className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"
                   >
-                    <Link
-                      href={`/assignments/${assignment.id}`}
-                      className="hover:text-brand-700 hover:underline"
-                    >
-                      {assignment.title}
-                    </Link>
+                    {r.href ? (
+                      <Link href={r.href} className="hover:text-brand-700 hover:underline">
+                        {r.label}
+                      </Link>
+                    ) : (
+                      <span>{r.label}</span>
+                    )}
                     <span className="flex items-center gap-2">
-                      {submission?.status === "approved" &&
-                        submission.score !== null && (
-                          <span className="font-semibold text-slate-800">
-                            {submission.score}/{assignment.points}
-                          </span>
-                        )}
-                      <StatusBadge status={submission?.status ?? "notsubmitted"} />
+                      {r.scoreDisplay && (
+                        <span className="font-semibold text-slate-800">{r.scoreDisplay}</span>
+                      )}
+                      {r.submissionStatus && <StatusBadge status={r.submissionStatus} />}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : hasArchivedDetail ? (
-            <details>
-              <summary className="cursor-pointer">{row.course.title}</summary>
-              <ul className="mt-2 space-y-1 pl-4 font-normal">
-                {detail!.archivedScores!.map((score) => (
-                  <li
-                    key={score.id}
-                    className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"
-                  >
-                    <span>{score.label}</span>
-                    <span className="font-semibold text-slate-800">{score.score}</span>
                   </li>
                 ))}
               </ul>
