@@ -264,3 +264,22 @@ export async function getGradingQueue() {
     .where(eq(submissions.status, "submitted"))
     .orderBy(asc(submissions.submittedAt));
 }
+
+/** Every graded submission (approved or returned), most recent first. */
+export async function getGradedSubmissions(limit = 100) {
+  const db = await getDb();
+  return db
+    .select({
+      submission: submissions,
+      student: users,
+      assignment: assignments,
+      course: courses,
+    })
+    .from(submissions)
+    .innerJoin(users, eq(submissions.userId, users.id))
+    .innerJoin(assignments, eq(submissions.assignmentId, assignments.id))
+    .innerJoin(courses, eq(assignments.courseId, courses.id))
+    .where(inArray(submissions.status, ["approved", "returned"]))
+    .orderBy(desc(submissions.gradedAt))
+    .limit(limit);
+}
