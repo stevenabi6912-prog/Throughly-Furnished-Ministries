@@ -448,3 +448,64 @@ export async function setUserActive(formData: FormData): Promise<void> {
   await db.update(users).set({ active }).where(eq(users.id, userId));
   revalidatePath("/admin/students", "layout");
 }
+
+// Marks a standing assignment (weekly devotions, sermon notes, scripture
+// memory, or anything else) done for a student on a chosen date — for
+// work turned in on paper in class rather than uploaded on the site.
+// Un-marking removes the submission entirely (there's no "not done"
+// status; absence of a submission IS not-done).
+export async function setAssignmentCompletion(formData: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const userId = Number(formData.get("userId"));
+  const assignmentId = Number(formData.get("assignmentId"));
+  const complete = formData.get("complete") === "1";
+  const dateStr = String(formData.get("date") ?? "").trim();
+  const db = await getDb();
+
+  const existing = await db.query.submissions.findFirst({
+    where: and(
+      eq(submissions.assignmentId, assignmentId),
+      eq(submissions.userId, userId)
+    ),
+  });
+
+  if (!complete) {
+    if (existing) await db.delete(submissions).where(eq(submissions.id, existing.id));
+    revalidatePath("/admin/roster");
+    return;
+  }
+
+  const assignment = await db.query.assignments.findFirst({
+    where: eq(assignments.id, assignmentId),
+  });
+  if (!assignment) return;
+  // A bare date (from a date input) is a calendar day with no wall-clock
+  // time; anchor it at noon Eastern so it doesn't drift to the previous
+  // day when rendered.
+  const submittedAt = dateStr ? easternToUtc(`${dateStr}T12:00`) : new Date();
+
+  if (existing) {
+    await db
+      .update(submissions)
+      .set({
+        status: "approved",
+        submittedAt,
+        score: assignment.points,
+        gradedById: admin.id,
+        gradedAt: new Date(),
+      })
+      .where(eq(submissions.id, existing.id));
+  } else {
+    await db.insert(submissions).values({
+      assignmentId,
+      userId,
+      status: "approved",
+      submittedAt,
+      score: assignment.points,
+      text: "Recorded by teacher — completed in class.",
+      gradedById: admin.id,
+      gradedAt: new Date(),
+    });
+  }
+  revalidatePath("/admin/roster");
+}

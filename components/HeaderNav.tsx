@@ -70,7 +70,7 @@ export default function HeaderNav({ user }: { user: SessionUser }) {
                 aria-label="Report a bug"
                 className="ml-1 rounded-lg px-2.5 py-2 text-lg text-slate-300 transition-colors hover:bg-slate-900 hover:text-white"
               >
-                🐛
+                🐞
               </Link>
               <form action={logout} className="ml-1">
                 <button
@@ -152,7 +152,7 @@ export default function HeaderNav({ user }: { user: SessionUser }) {
                   onClick={close}
                   className="block rounded px-2 py-2 text-base text-slate-300 hover:bg-slate-900"
                 >
-                  🐛 Report a Bug
+                  🐞 Report a Bug
                 </Link>
                 <form action={logout}>
                   <button

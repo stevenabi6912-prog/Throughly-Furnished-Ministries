@@ -326,6 +326,62 @@ async function main() {
     );
   }
 
+  // Weekly Devotions + Sermon Notes (every class day) and Scripture
+  // Memory (every lesson day — midterm/final review past verses rather
+  // than assigning a new one). Turned in on paper in class or, if a
+  // student prefers, photographed and uploaded here; either way a
+  // teacher marks it done from the roster (see /admin/roster).
+  const weeklyTitles = new Set<string>();
+  for (const p of PLAN) {
+    if (!p.opens) continue;
+    const day = p.opens.slice(0, 10); // "2026-09-13T15:00" -> "2026-09-13"
+    const label = easternToUtc(`${day}T12:00`).toLocaleDateString("en-US", {
+      timeZone: "America/Detroit",
+      month: "short",
+      day: "numeric",
+    });
+    const dueAt = easternToUtc(`${day}T23:59`);
+
+    const items: { title: string; instructions: string }[] = [
+      {
+        title: `Devotions — ${label}`,
+        instructions:
+          "<p>Bring your devotions journal to class, or take a picture of this week's entries and upload it here. Due Sunday evening.</p>",
+      },
+      {
+        title: `Sermon Notes — ${label}`,
+        instructions:
+          "<p>Bring your notes from today's sermon to class, or take a picture and upload them here. Due Sunday evening.</p>",
+      },
+    ];
+    if (p.memoryVerse) {
+      items.push({
+        title: `Scripture Memory — ${label}`,
+        instructions: `<p><strong>Recite this verse to your teacher in class</strong> — nothing to upload here; your teacher marks it complete from the roster.</p><blockquote><p>${p.memoryVerse}</p></blockquote>`,
+      });
+    }
+
+    for (const item of items) {
+      weeklyTitles.add(item.title);
+      const values = {
+        courseId: course.id,
+        lessonId: null,
+        title: item.title,
+        instructionsHtml: item.instructions,
+        points: 100,
+        dueAt,
+        published: true,
+        sortOrder: p.sortOrder,
+      };
+      const existing = await db.query.assignments.findFirst({
+        where: and(eq(assignments.courseId, course.id), eq(assignments.title, item.title)),
+      });
+      if (existing) await db.update(assignments).set(values).where(eq(assignments.id, existing.id));
+      else await db.insert(assignments).values(values);
+    }
+  }
+  report.push(`${weeklyTitles.size} weekly Devotions/Sermon Notes/Scripture Memory items`);
+
   // Tidy up: unpublish leftover imported lessons that aren't in the plan,
   // and leftover assignments unless they hold graded history.
   const allLessons = await db.query.lessons.findMany({
@@ -347,6 +403,7 @@ async function main() {
   let hiddenAssignments = 0;
   for (const a of allAssignments) {
     if (a.lessonId && planLessonIds.has(a.lessonId)) continue;
+    if (weeklyTitles.has(a.title)) continue;
     const hasGrades = await db.query.submissions.findFirst({
       where: eq(submissions.assignmentId, a.id),
     });

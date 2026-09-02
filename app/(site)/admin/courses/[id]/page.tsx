@@ -126,15 +126,23 @@ export default async function AdminCourseDetailPage({
                         lessons={courseLessons}
                         assignment={assignment}
                       />
-                      <form action={deleteAssignment} className="mt-3">
-                        <input type="hidden" name="id" value={assignment.id} />
-                        <button
-                          type="submit"
-                          className="text-xs font-semibold text-red-600 hover:underline"
+                      <div className="mt-3 flex items-center gap-4">
+                        <Link
+                          href={`/admin/roster/${assignment.id}`}
+                          className="text-xs font-semibold text-brand-700 hover:underline"
                         >
-                          Delete this assignment
-                        </button>
-                      </form>
+                          Roster — check who&rsquo;s done →
+                        </Link>
+                        <form action={deleteAssignment}>
+                          <input type="hidden" name="id" value={assignment.id} />
+                          <button
+                            type="submit"
+                            className="text-xs font-semibold text-red-600 hover:underline"
+                          >
+                            Delete this assignment
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   </details>
                 </li>
