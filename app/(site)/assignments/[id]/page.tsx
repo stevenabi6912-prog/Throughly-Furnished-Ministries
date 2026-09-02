@@ -31,10 +31,13 @@ export default async function AssignmentPage({
 
   // Locked until it opens — same rule as the lesson it belongs to (if
   // any), plus its own availableAt for standalone assignments like
-  // weekly Devotions/Sermon Notes/Scripture Memory.
+  // weekly Devotions/Sermon Notes/Scripture Memory. A hidden/draft
+  // lesson (a few leftovers from the LearnDash import) hides its
+  // homework outright, same as navigating to the lesson itself would.
   const lesson = assignment.lessonId
     ? await db.query.lessons.findFirst({ where: eq(lessons.id, assignment.lessonId) })
     : null;
+  if (lesson && !lesson.published && user.role !== "admin") notFound();
   const opensAt = lesson?.availableAt ?? assignment.availableAt;
   if (user.role !== "admin" && opensAt && opensAt > new Date()) {
     return (

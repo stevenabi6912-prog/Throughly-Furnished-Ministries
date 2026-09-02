@@ -33,8 +33,14 @@ export default async function DashboardPage() {
       .filter((l) => l.availableAt && l.availableAt > now)
       .map((l) => l.id) ?? []
   );
+  // content.lessons only holds published lessons, so a lessonId that
+  // isn't in it belongs to a hidden/draft lesson (leftover from the
+  // LearnDash import in a few courses) — its homework shouldn't show
+  // as a to-do either.
+  const visibleLessonIds = new Set(content?.lessons.map((l) => l.id) ?? []);
   const openAssignments =
     content?.assignments.filter((a) => {
+      if (a.lessonId && !visibleLessonIds.has(a.lessonId)) return false;
       if (a.lessonId && lockedLessonIds.has(a.lessonId)) return false;
       if (a.availableAt && a.availableAt > now) return false;
       const sub = latestByAssignment.get(a.id);
