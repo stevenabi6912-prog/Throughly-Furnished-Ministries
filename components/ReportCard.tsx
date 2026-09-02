@@ -63,9 +63,23 @@ function mergeDetailRows(detail: GradebookEntry): DetailRow[] {
   const archivedByLabel = new Map(archived.map((a) => [normalize(a.label), a]));
   const usedArchivedIds = new Set<number>();
 
-  const rows: DetailRow[] = detail.rows.map(({ assignment, submission }) => {
+  // A course can have live `assignments` rows (e.g. old LearnDash
+  // quizzes) that this particular student never touched digitally,
+  // because their real grade was tracked entirely on paper and later
+  // imported as archived scores instead. When that's the case — this
+  // student has archived data but zero real live activity in this
+  // course — a pile of "Not submitted" placeholders next to their real
+  // scores is just noise, not information, so they're dropped. If the
+  // student has *any* real live submission, an unsubmitted one next to
+  // it is genuinely informative (something they're missing), so it
+  // stays.
+  const hasAnyLiveSubmission = detail.rows.some((r) => r.submission !== null);
+  const dropEmptyLiveRows = archived.length > 0 && !hasAnyLiveSubmission;
+
+  const rows: DetailRow[] = [];
+  for (const { assignment, submission } of detail.rows) {
     if (submission) {
-      return {
+      rows.push({
         key: `a${assignment.id}`,
         label: assignment.title,
         href: `/assignments/${assignment.id}`,
@@ -74,27 +88,30 @@ function mergeDetailRows(detail: GradebookEntry): DetailRow[] {
             ? `${submission.score}/${assignment.points}`
             : null,
         submissionStatus: submission.status,
-      };
+      });
+      continue;
     }
     const match = archivedByLabel.get(normalize(assignment.title));
     if (match) {
       usedArchivedIds.add(match.id);
-      return {
+      rows.push({
         key: `a${assignment.id}`,
         label: assignment.title,
         href: `/assignments/${assignment.id}`,
         scoreDisplay: String(match.score),
         submissionStatus: null,
-      };
+      });
+      continue;
     }
-    return {
+    if (dropEmptyLiveRows) continue;
+    rows.push({
       key: `a${assignment.id}`,
       label: assignment.title,
       href: `/assignments/${assignment.id}`,
       scoreDisplay: null,
       submissionStatus: "notsubmitted",
-    };
-  });
+    });
+  }
 
   for (const score of archived) {
     if (usedArchivedIds.has(score.id)) continue;

@@ -257,12 +257,22 @@ function CourseRow({
   showGrade?: boolean;
 }) {
   const completed = Boolean(record?.completedAt);
+  // Match the vocabulary the report card and student actually see:
+  // Pass for Ministry Participation, Complete for everything else.
+  const isMpa = course.track === "ministry-participation";
+  const doneLabel = isMpa ? "Pass" : "Complete";
+  const markDoneLabel = isMpa ? "Mark Pass" : "Mark Complete";
+  const undoLabel = isMpa ? "Un-mark" : "Mark Incomplete";
   return (
     <li className="text-sm">
       <div className="flex items-center justify-between gap-2">
         <span className={record ? "text-slate-800" : "text-slate-400"}>
           {course.title}
-          {completed && " ✓"}
+          {completed && (
+            <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+              {doneLabel}
+            </span>
+          )}
         </span>
         <form action={setCourseCompletion}>
           <input type="hidden" name="userId" value={studentId} />
@@ -276,7 +286,7 @@ function CourseRow({
                 : "text-brand-700 hover:bg-slate-100"
             }`}
           >
-            {completed ? "Un-complete" : "Mark complete"}
+            {completed ? undoLabel : markDoneLabel}
           </button>
         </form>
       </div>
