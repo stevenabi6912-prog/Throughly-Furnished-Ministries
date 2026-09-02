@@ -36,6 +36,7 @@ export default async function DashboardPage() {
   const openAssignments =
     content?.assignments.filter((a) => {
       if (a.lessonId && lockedLessonIds.has(a.lessonId)) return false;
+      if (a.availableAt && a.availableAt > now) return false;
       const sub = latestByAssignment.get(a.id);
       return !sub || sub.status === "returned";
     }) ?? [];
@@ -220,76 +221,13 @@ export default async function DashboardPage() {
                       )}
                     </ol>
                   )}
-
-                  {content.assignments.length > 0 && (
-                    <>
-                      <h3 className="mt-8 text-sm font-semibold uppercase tracking-wider text-slate-500">
-                        Assignments
-                      </h3>
-                      <ul className="mt-3 space-y-2">
-                        {content.assignments.map((assignment) => {
-                          const sub = latestByAssignment.get(assignment.id);
-                          return (
-                            <li key={assignment.id}>
-                              <Link
-                                href={`/assignments/${assignment.id}`}
-                                className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-slate-50"
-                              >
-                                <span className="font-medium text-slate-900">
-                                  {assignment.title}
-                                </span>
-                                <span className="flex items-center gap-2">
-                                  {sub?.status === "approved" &&
-                                    sub.score !== null && (
-                                      <span className="text-sm font-bold">
-                                        {sub.score}/{assignment.points}
-                                      </span>
-                                    )}
-                                  <StatusBadge status={sub?.status ?? "notsubmitted"} />
-                                </span>
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </>
-                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Sidebar: to-do + recent grades */}
+          {/* Sidebar: recent grades */}
           <div className="space-y-10">
-            <div>
-              <h2 className="text-2xl">To Do</h2>
-              {openAssignments.length === 0 ? (
-                <p className="mt-4 rounded-2xl bg-white p-5 text-sm text-slate-600 shadow-sm">
-                  Nothing waiting on you — great work.
-                </p>
-              ) : (
-                <ul className="mt-4 space-y-3">
-                  {openAssignments.slice(0, 6).map((assignment) => (
-                    <li key={assignment.id}>
-                      <Link
-                        href={`/assignments/${assignment.id}`}
-                        className="hover-lift block rounded-xl bg-white p-4 shadow-sm"
-                      >
-                        <p className="text-sm font-semibold text-slate-900">
-                          {assignment.title}
-                        </p>
-                        {assignment.dueAt && (
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            Due {assignment.dueAt.toLocaleDateString()}
-                          </p>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
             <div>
               <h2 className="text-2xl">Recent Grades</h2>
               {recentGrades.length === 0 ? (

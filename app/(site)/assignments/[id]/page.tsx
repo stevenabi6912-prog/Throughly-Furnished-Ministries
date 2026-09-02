@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth/session";
-import { assignments, courses, getDb, submissions } from "@/lib/db";
+import { assignments, courses, getDb, lessons, submissions } from "@/lib/db";
 import { canViewCourse } from "@/lib/data";
 import { formatEastern } from "@/lib/time";
 import StatusBadge from "@/components/StatusBadge";
@@ -28,6 +28,33 @@ export default async function AssignmentPage({
     where: eq(courses.id, assignment.courseId),
   });
   if (!course || !(await canViewCourse(user, course))) notFound();
+
+  // Locked until it opens — same rule as the lesson it belongs to (if
+  // any), plus its own availableAt for standalone assignments like
+  // weekly Devotions/Sermon Notes/Scripture Memory.
+  const lesson = assignment.lessonId
+    ? await db.query.lessons.findFirst({ where: eq(lessons.id, assignment.lessonId) })
+    : null;
+  const opensAt = lesson?.availableAt ?? assignment.availableAt;
+  if (user.role !== "admin" && opensAt && opensAt > new Date()) {
+    return (
+      <section className="bg-slate-50 px-4 py-24 text-center">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-10 shadow-sm">
+          <p className="text-4xl" aria-hidden="true">🔒</p>
+          <h1 className="mt-4 text-2xl text-slate-900">{assignment.title}</h1>
+          <p className="mt-3 text-slate-600">
+            This opens {formatEastern(opensAt)}.
+          </p>
+          <Link
+            href={`/courses/${course.slug}`}
+            className="mt-6 inline-block rounded-lg bg-brand-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-brand-600"
+          >
+            Back to {course.title}
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   const mySubmissions = await db.query.submissions.findMany({
     where: and(

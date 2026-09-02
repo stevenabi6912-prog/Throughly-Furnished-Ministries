@@ -111,6 +111,10 @@ export const assignments = pgTable("assignments", {
   title: text("title").notNull(),
   instructionsHtml: text("instructions_html").notNull().default(""),
   points: integer("points").notNull().default(100),
+  // When this becomes visible/open to students — mainly for standalone
+  // assignments (no lessonId) like weekly Devotions/Sermon Notes, which
+  // otherwise have no lesson to inherit a lock date from.
+  availableAt: timestamp("available_at"),
   dueAt: timestamp("due_at"),
   sortOrder: integer("sort_order").notNull().default(0),
   published: boolean("published").notNull().default(true),

@@ -1,0 +1,1 @@
+ALTER TABLE "assignments" ADD COLUMN "available_at" timestamp;

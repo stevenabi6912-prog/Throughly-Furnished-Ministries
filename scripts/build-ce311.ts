@@ -341,6 +341,7 @@ async function main() {
       day: "numeric",
     });
     const dueAt = easternToUtc(`${day}T23:59`);
+    const availableAt = easternToUtc(p.opens);
 
     const items: { title: string; instructions: string }[] = [
       {
@@ -369,6 +370,7 @@ async function main() {
         title: item.title,
         instructionsHtml: item.instructions,
         points: 100,
+        availableAt,
         dueAt,
         published: true,
         sortOrder: p.sortOrder,
