@@ -192,7 +192,7 @@ export default async function AdminStudentDetailPage({
                   type="submit"
                   className="shrink-0 rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-600"
                 >
-                  Set
+                  Save Password
                 </button>
               </form>
             </div>
@@ -310,7 +310,7 @@ function CourseRow({
             type="submit"
             className="rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-slate-100"
           >
-            Set
+            Save
           </button>
         </form>
       )}
