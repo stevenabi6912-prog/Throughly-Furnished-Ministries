@@ -39,14 +39,18 @@ export default async function AdminStudentDetailPage({
   const recordByCourse = new Map(gradebook.map((g) => [g.course.id, g]));
   const isSelf = student.id === admin.id;
 
-  // Published, real curriculum only — no demo/draft courses cluttering a
-  // student's actual record. Ministry Participation alone has ~24 terms,
-  // so only show the ones this student already has a record for, plus a
-  // compact control to add a new one — not all 24 every time.
-  const published = allCourses.filter((c) => c.published);
-  const biblicalStudies = published.filter((c) => c.track === "biblical-studies");
-  const practicalSkills = published.filter((c) => c.track === "practical-skills");
-  const mpaAll = published.filter((c) => c.track === "ministry-participation");
+  // Currently-published courses (so an admin can add a new record for
+  // anything live), plus anything this student already has a record
+  // for even if it's since been unpublished — several real courses
+  // (with real grades) were never toggled on for the live catalog
+  // after the original import, and hiding those would make an actual
+  // grade impossible to find or edit. Only genuinely irrelevant
+  // unpublished courses (demo/draft, nothing this student ever took)
+  // stay hidden.
+  const relevant = allCourses.filter((c) => c.published || recordByCourse.has(c.id));
+  const biblicalStudies = relevant.filter((c) => c.track === "biblical-studies");
+  const practicalSkills = relevant.filter((c) => c.track === "practical-skills");
+  const mpaAll = relevant.filter((c) => c.track === "ministry-participation");
   const mpaRecorded = mpaAll.filter((c) => recordByCourse.has(c.id));
   const mpaAvailable = mpaAll.filter((c) => !recordByCourse.has(c.id));
 
@@ -291,28 +295,35 @@ function CourseRow({
         </form>
       </div>
       {showGrade && (
-        <form action={setGradeOverride} className="mt-1 flex items-center gap-1.5 pl-3">
-          <input type="hidden" name="userId" value={studentId} />
-          <input type="hidden" name="courseId" value={course.id} />
-          <label className="text-xs text-slate-500">
-            Official grade %
-            <input
-              name="pct"
-              type="number"
-              min={0}
-              max={100}
-              defaultValue={record?.overridePct ?? ""}
-              placeholder="auto"
-              className="ml-1.5 w-16 rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-900"
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-slate-100"
-          >
-            Save
-          </button>
-        </form>
+        <details className="mt-1 pl-3">
+          <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-700">
+            {record?.overridePct != null
+              ? `Grade is manually set to ${record.overridePct}% — change it`
+              : "Grade is computed automatically — override it instead"}
+          </summary>
+          <form action={setGradeOverride} className="mt-1.5 flex items-center gap-1.5">
+            <input type="hidden" name="userId" value={studentId} />
+            <input type="hidden" name="courseId" value={course.id} />
+            <label className="text-xs text-slate-500">
+              Official grade %
+              <input
+                name="pct"
+                type="number"
+                min={0}
+                max={100}
+                defaultValue={record?.overridePct ?? ""}
+                placeholder="auto"
+                className="ml-1.5 w-16 rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-900"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-slate-100"
+            >
+              Save
+            </button>
+          </form>
+        </details>
       )}
     </li>
   );
