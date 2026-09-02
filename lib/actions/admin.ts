@@ -13,6 +13,7 @@ import {
   users,
 } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/session";
+import { hashPassword } from "@/lib/auth/password";
 import { cleanHtml } from "@/lib/html";
 import { saveContentFile } from "@/lib/uploads";
 import { youTubeEmbedUrl } from "@/lib/youtube";
@@ -508,4 +509,21 @@ export async function setAssignmentCompletion(formData: FormData): Promise<void>
     });
   }
   revalidatePath("/admin/roster");
+}
+
+// Sets a user's password directly — the site has no outbound email, so
+// self-service "email me a reset link" isn't possible. An admin sets a
+// new password here (for themselves or anyone else) and relays it to
+// the student however makes sense (in person, text, etc.).
+export async function resetPassword(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const userId = Number(formData.get("userId"));
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8) return;
+  const db = await getDb();
+  await db
+    .update(users)
+    .set({ passwordHash: hashPassword(password), legacyHash: null })
+    .where(eq(users.id, userId));
+  revalidatePath("/admin/students", "layout");
 }

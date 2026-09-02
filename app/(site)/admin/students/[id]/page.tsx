@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { courses, getDb, users } from "@/lib/db";
 import { getGradebook } from "@/lib/data";
 import {
+  resetPassword,
   setCourseCompletion,
   setGradeOverride,
   setUserActive,
@@ -145,6 +146,33 @@ export default async function AdminStudentDetailPage({
                   );
                 })}
               </ul>
+            </div>
+
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <h2 className="font-bold text-slate-900">Password</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                The site can&rsquo;t send reset emails, so set a new
+                password directly and pass it along
+                {isSelf ? " to yourself" : ` to ${student.name.split(" ")[0]}`}
+                .
+              </p>
+              <form action={resetPassword} className="mt-3 flex items-center gap-2">
+                <input type="hidden" name="userId" value={student.id} />
+                <input
+                  name="password"
+                  type="text"
+                  minLength={8}
+                  required
+                  placeholder="New password (8+ characters)"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500"
+                />
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+                >
+                  Set
+                </button>
+              </form>
             </div>
 
             {!isSelf && (

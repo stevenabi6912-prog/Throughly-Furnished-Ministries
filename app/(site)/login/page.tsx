@@ -24,6 +24,9 @@ export default async function LoginPage() {
             Create an account
           </Link>
         </p>
+        <p className="mt-2 text-sm text-slate-600">
+          Forgot your password? Ask your teacher to reset it for you.
+        </p>
       </div>
     </section>
   );
