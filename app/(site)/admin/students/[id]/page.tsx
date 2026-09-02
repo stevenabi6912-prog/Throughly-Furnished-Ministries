@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
-import { courses, getDb, users } from "@/lib/db";
-import { getGradebook } from "@/lib/data";
+import { courses, getDb, users, type Course } from "@/lib/db";
+import { getGradebook, TRACK_INFO } from "@/lib/data";
 import {
   resetPassword,
   setCourseCompletion,
@@ -38,6 +38,17 @@ export default async function AdminStudentDetailPage({
   ]);
   const recordByCourse = new Map(gradebook.map((g) => [g.course.id, g]));
   const isSelf = student.id === admin.id;
+
+  // Published, real curriculum only — no demo/draft courses cluttering a
+  // student's actual record. Ministry Participation alone has ~24 terms,
+  // so only show the ones this student already has a record for, plus a
+  // compact control to add a new one — not all 24 every time.
+  const published = allCourses.filter((c) => c.published);
+  const biblicalStudies = published.filter((c) => c.track === "biblical-studies");
+  const practicalSkills = published.filter((c) => c.track === "practical-skills");
+  const mpaAll = published.filter((c) => c.track === "ministry-participation");
+  const mpaRecorded = mpaAll.filter((c) => recordByCourse.has(c.id));
+  const mpaAvailable = mpaAll.filter((c) => !recordByCourse.has(c.id));
 
   // Submissions still waiting on a grade, surfaced for quick access.
   const waiting = gradebook.flatMap(({ rows }) =>
@@ -80,72 +91,83 @@ export default async function AdminStudentDetailPage({
                 Marking a course complete awards its credits (and the
                 Complete/Pass on the report card).
               </p>
-              <ul className="mt-3 space-y-2">
-                {allCourses.map((course) => {
-                  const record = recordByCourse.get(course.id);
-                  const completed = Boolean(record?.completedAt);
-                  return (
-                    <li key={course.id} className="text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={
-                            record ? "text-slate-800" : "text-slate-400"
-                          }
-                        >
-                          {course.title}
-                          {completed && " ✓"}
-                        </span>
-                        <form action={setCourseCompletion}>
-                          <input type="hidden" name="userId" value={student.id} />
-                          <input type="hidden" name="courseId" value={course.id} />
-                          <input
-                            type="hidden"
-                            name="complete"
-                            value={completed ? "0" : "1"}
-                          />
-                          <button
-                            type="submit"
-                            className={`rounded px-2 py-1 text-xs font-semibold ${
-                              completed
-                                ? "text-slate-500 hover:bg-slate-100"
-                                : "text-brand-700 hover:bg-slate-100"
-                            }`}
-                          >
-                            {completed ? "Un-complete" : "Mark complete"}
-                          </button>
-                        </form>
-                      </div>
-                      {course.track === "biblical-studies" && (
-                        <form
-                          action={setGradeOverride}
-                          className="mt-1 flex items-center gap-1.5 pl-3"
-                        >
-                          <input type="hidden" name="userId" value={student.id} />
-                          <input type="hidden" name="courseId" value={course.id} />
-                          <label className="text-xs text-slate-500">
-                            Official grade %
-                            <input
-                              name="pct"
-                              type="number"
-                              min={0}
-                              max={100}
-                              defaultValue={record?.overridePct ?? ""}
-                              placeholder="auto"
-                              className="ml-1.5 w-16 rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-900"
-                            />
-                          </label>
-                          <button
-                            type="submit"
-                            className="rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-slate-100"
-                          >
-                            Set
-                          </button>
-                        </form>
-                      )}
-                    </li>
-                  );
-                })}
+
+              <h3 className="mt-5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {TRACK_INFO["biblical-studies"].title}
+              </h3>
+              <ul className="mt-2 space-y-2">
+                {biblicalStudies.map((course) => (
+                  <CourseRow
+                    key={course.id}
+                    course={course}
+                    record={recordByCourse.get(course.id)}
+                    studentId={student.id}
+                    showGrade
+                  />
+                ))}
               </ul>
+
+              <h3 className="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {TRACK_INFO["practical-skills"].title}
+              </h3>
+              <ul className="mt-2 space-y-2">
+                {practicalSkills.map((course) => (
+                  <CourseRow
+                    key={course.id}
+                    course={course}
+                    record={recordByCourse.get(course.id)}
+                    studentId={student.id}
+                  />
+                ))}
+              </ul>
+
+              <h3 className="mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {TRACK_INFO["ministry-participation"].title}
+              </h3>
+              {mpaRecorded.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-500">No terms recorded yet.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {mpaRecorded.map((course) => (
+                    <CourseRow
+                      key={course.id}
+                      course={course}
+                      record={recordByCourse.get(course.id)}
+                      studentId={student.id}
+                    />
+                  ))}
+                </ul>
+              )}
+              {mpaAvailable.length > 0 && (
+                <form
+                  action={setCourseCompletion}
+                  className="mt-2 flex items-center gap-1.5"
+                >
+                  <input type="hidden" name="userId" value={student.id} />
+                  <input type="hidden" name="complete" value="1" />
+                  <select
+                    name="courseId"
+                    required
+                    defaultValue=""
+                    className="min-w-0 flex-1 rounded border border-slate-300 px-1.5 py-1 text-xs text-slate-900"
+                  >
+                    <option value="" disabled>
+                      Add a term…
+                    </option>
+                    {mpaAvailable.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.title.replace("Ministry Participation — ", "")}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-slate-100"
+                  >
+                    Mark Pass
+                  </button>
+                </form>
+              )}
             </div>
 
             <div className="rounded-2xl bg-white p-5 shadow-sm">
@@ -218,5 +240,70 @@ export default async function AdminStudentDetailPage({
         </div>
       </section>
     </>
+  );
+}
+
+type GradebookRow = Awaited<ReturnType<typeof getGradebook>>[number];
+
+function CourseRow({
+  course,
+  record,
+  studentId,
+  showGrade = false,
+}: {
+  course: Course;
+  record: GradebookRow | undefined;
+  studentId: number;
+  showGrade?: boolean;
+}) {
+  const completed = Boolean(record?.completedAt);
+  return (
+    <li className="text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className={record ? "text-slate-800" : "text-slate-400"}>
+          {course.title}
+          {completed && " ✓"}
+        </span>
+        <form action={setCourseCompletion}>
+          <input type="hidden" name="userId" value={studentId} />
+          <input type="hidden" name="courseId" value={course.id} />
+          <input type="hidden" name="complete" value={completed ? "0" : "1"} />
+          <button
+            type="submit"
+            className={`rounded px-2 py-1 text-xs font-semibold ${
+              completed
+                ? "text-slate-500 hover:bg-slate-100"
+                : "text-brand-700 hover:bg-slate-100"
+            }`}
+          >
+            {completed ? "Un-complete" : "Mark complete"}
+          </button>
+        </form>
+      </div>
+      {showGrade && (
+        <form action={setGradeOverride} className="mt-1 flex items-center gap-1.5 pl-3">
+          <input type="hidden" name="userId" value={studentId} />
+          <input type="hidden" name="courseId" value={course.id} />
+          <label className="text-xs text-slate-500">
+            Official grade %
+            <input
+              name="pct"
+              type="number"
+              min={0}
+              max={100}
+              defaultValue={record?.overridePct ?? ""}
+              placeholder="auto"
+              className="ml-1.5 w-16 rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-900"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-slate-100"
+          >
+            Set
+          </button>
+        </form>
+      )}
+    </li>
   );
 }
